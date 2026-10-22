@@ -8,6 +8,7 @@
     activeTag: '',
     query: '',
     posts: [],
+    imageFile: null,
     ticketId: null,
     ticketStatus: '',
     adminTicketId: null,
@@ -107,20 +108,6 @@
     renderTagFilter();
   }
 
-  async function createTag() {
-    const input = $('#tag-new-input');
-    const name = input.value.trim().replace(/^#/, '');
-    if (!name) return;
-    try {
-      await authFetch('/api/community/tags', { method: 'POST', body: JSON.stringify({ name }) });
-      input.value = '';
-      await loadTags();
-      state.selectedTags.add(name);
-      renderTagSelector();
-      toast(`เพิ่ม tag #${name} แล้ว`);
-    } catch (error) { toast(error.message); }
-  }
-
   // ---------- ตัวเลือกโพล ----------
   function renderOptions() {
     const box = $('#compose-option-list');
@@ -147,6 +134,83 @@
     renderOptions();
     const inputs = $$('#compose-option-list input');
     inputs[inputs.length - 1]?.focus();
+  }
+
+  // ---------- รีเฟรชผลโหวตในกล่องโพล (ไม่โหลดทั้งหน้าใหม่) ----------
+  function repaintPoll(post, poll) {
+    const total = post.total_votes || 0;
+    const rows = poll.querySelectorAll('.poll-option');
+    const topVotes = Math.max(0, ...post.options.map((option) => option.votes || 0));
+    post.options.forEach((option, index) => {
+      const row = rows[index];
+      if (!row) return;
+      const votes = option.votes || 0;
+      const percent = total ? Math.round((votes / total) * 100) : 0;
+      const isPicked = post.my_vote === option.id;
+      const isLeading = total > 0 && votes === topVotes && votes > 0;
+      row.classList.toggle('picked', isPicked);
+      row.classList.toggle('leading', isLeading);
+      row.setAttribute('aria-pressed', String(isPicked));
+      const bar = row.querySelector('.poll-bar');
+      if (bar) bar.style.width = `${percent}%`;
+      const count = row.querySelector('.poll-count');
+      if (count) count.textContent = `${votes} (${percent}%)`;
+      const crown = row.querySelector('.poll-crown');
+      if (crown) crown.textContent = isLeading ? '👑' : '';
+    });
+    const totalLine = poll.querySelector('.poll-total');
+    if (totalLine) {
+      totalLine.textContent = post.my_vote != null
+        ? `โหวตแล้ว ${total} คน · คุณเลือกแล้ว — กดซ้ำเพื่อเปลี่ยนคำตอบ`
+        : `โหวตแล้ว ${total} คน · โหวตได้คนละหนึ่งเสียง`;
+    }
+  }
+
+  // ---------- รูปภาพประกอบกระทู้ ----------
+  function previewSelectedImage() {
+    const file = state.imageFile;
+    const preview = $('#compose-image-preview');
+    const thumb = $('#compose-image-thumb');
+    const clear = $('#compose-image-clear');
+    if (!file || !preview || !thumb) { if (preview) preview.hidden = true; if (clear) clear.hidden = true; return; }
+    // ปลด URL เดิมก่อนสร้างใหม่ — ไม่ให้รั่ว memory ตอนเลือกรูปหลายครั้ง
+    if (thumb.src?.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+    thumb.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    if (clear) clear.hidden = false;
+  }
+
+  function clearSelectedImage() {
+    const input = $('#compose-image');
+    const thumb = $('#compose-image-thumb');
+    if (thumb?.src?.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+    if (input) input.value = '';
+    state.imageFile = null;
+    const preview = $('#compose-image-preview');
+    if (preview) preview.hidden = true;
+    const clear = $('#compose-image-clear');
+    if (clear) clear.hidden = true;
+  }
+
+  async function uploadSelectedImage() {
+    const file = state.imageFile;
+    if (!file) return '';
+    if (file.size > 5 * 1024 * 1024) {
+      setStatus('#compose-status', 'รูปใหญ่เกิน 5 MB — ลองย่อขนาดก่อนนะ', 'err');
+      return null;
+    }
+    const form = new FormData();
+    form.append('file', file);
+    const token = await accessToken();
+    if (!token) throw new Error('ยังไม่ได้เข้าสู่ระบบ');
+    const response = await fetch('/api/community/uploads', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'อัปโหลดรูปไม่สำเร็จ');
+    return data.url || '';
   }
 
   // ---------- กระทู้ ----------
@@ -178,54 +242,98 @@
     const title = el('h3', 'thread-title', post.title);
     const body = post.body ? el('p', 'thread-body', post.body) : null;
 
+    // รูปภาพประกอบกระทู้
+    let image = null;
+    if (post.image_url) {
+      image = el('div', 'thread-image');
+      const img = el('img');
+      img.src = post.image_url;
+      img.alt = post.title ? `รูปประกอบกระทู้: ${post.title}` : 'รูปประกอบกระทู้';
+      img.loading = 'lazy';
+      img.addEventListener('error', () => image.remove());
+      image.append(img);
+    }
+
     const actions = el('div', 'thread-actions');
     const like = el('button', 'thread-action');
     like.type = 'button';
     like.classList.toggle('on', !!post.liked);
+    like.setAttribute('aria-pressed', String(!!post.liked));
+    like.setAttribute('aria-label', post.liked ? 'เอากดไลก์ออก' : 'กดไลก์กระทู้นี้');
     like.innerHTML = `<span aria-hidden="true">${post.liked ? '♥' : '♡'}</span> ${post.likes || 0}`;
     like.addEventListener('click', async () => {
+      like.disabled = true;
       try {
         const data = await authFetch(`/api/community/posts/${post.id}/like`, { method: 'POST' });
         post.liked = data.liked;
-        post.likes = Math.max(0, (post.likes || 0) + (data.liked ? 1 : -1));
+        post.likes = typeof data.likes === 'number' ? data.likes : Math.max(0, (post.likes || 0) + (data.liked ? 1 : -1));
         like.classList.toggle('on', post.liked);
+        like.setAttribute('aria-pressed', String(post.liked));
+        like.setAttribute('aria-label', post.liked ? 'เอากดไลก์ออก' : 'กดไลก์กระทู้นี้');
         like.innerHTML = `<span aria-hidden="true">${post.liked ? '♥' : '♡'}</span> ${post.likes}`;
       } catch (error) { toast(error.message); }
+      like.disabled = false;
     });
     const commentBtn = el('button', 'thread-action');
     commentBtn.type = 'button';
+    commentBtn.setAttribute('aria-label', 'ดูความคิดเห็น');
     commentBtn.innerHTML = `<span aria-hidden="true">💬</span> ${post.comments_count || 0}`;
     actions.append(like, commentBtn);
 
     card.append(head, tags, title);
     if (body) card.append(body);
+    if (image) card.append(image);
 
     // ตัวเลือกโพล + ผลโหวต
     if ((post.options || []).length) {
       const poll = el('div', 'poll-box');
       const total = post.total_votes || 0;
+      const picked = post.my_vote != null;
       post.options.forEach((option) => {
         const votes = option.votes || 0;
         const percent = total ? Math.round((votes / total) * 100) : 0;
-        const picked = post.my_vote === option.id;
-        const row = el('button', `poll-option${picked ? ' picked' : ''}`);
+        const isPicked = post.my_vote === option.id;
+        const row = el('button', `poll-option${isPicked ? ' picked' : ''}`);
         row.type = 'button';
+        row.setAttribute('aria-pressed', String(isPicked));
         const bar = el('span', 'poll-bar');
         bar.style.width = `${percent}%`;
         const label = el('span', 'poll-label', option.label);
         const count = el('span', 'poll-count', `${votes} (${percent}%)`);
-        row.append(bar, label, count);
+        const crown = el('span', 'poll-crown');
+        row.append(bar, label, count, crown);
         row.addEventListener('click', async () => {
+          if (row.disabled) return;
+          // ยกเลิกก่อนเพื่อกันกดรัว ๆ ส่งคำขอซ้ำ
+          poll.querySelectorAll('.poll-option').forEach((node) => { node.disabled = true; });
           try {
-            await authFetch(`/api/community/posts/${post.id}/vote`, { method: 'POST', body: JSON.stringify({ option_id: option.id }) });
-            loadPosts();
+            const data = await authFetch(`/api/community/posts/${post.id}/vote`, {
+              method: 'POST',
+              body: JSON.stringify({ option_id: option.id }),
+            });
+            // อัปเดตผลโหวตในที่โดยไม่ต้องโหลดทั้งหน้าใหม่
+            post.my_vote = data.my_vote ?? null;
+            post.total_votes = data.total_votes ?? post.total_votes;
+            (data.options || []).forEach((updated) => {
+              const target = post.options.find((item) => item.id === updated.id);
+              if (target) target.votes = updated.votes;
+            });
+            repaintPoll(post, poll);
+            // ดูผลจริงจาก response (ไม่ใช่ค่าเก่าที่ปิดไว้ตอน render)
+            toast(data.my_vote == null ? 'ยกเลิกการโหวตแล้ว' : 'บันทึกการโหวตแล้ว');
           } catch (error) { toast(error.message); }
+          poll.querySelectorAll('.poll-option').forEach((node) => { node.disabled = false; });
         });
         poll.append(row);
       });
-      const totalLine = el('div', 'poll-total', `โหวตแล้ว ${total} คน · โหวตได้คนละหนึ่งครั้ง`);
+      const totalLine = el('div', 'poll-total');
+      totalLine.textContent = picked
+        ? `โหวตแล้ว ${total} คน · คุณเลือกแล้ว — กดซ้ำเพื่อเปลี่ยนคำตอบ`
+        : `โหวตแล้ว ${total} คน · โหวตได้คนละหนึ่งเสียง`;
       poll.append(totalLine);
       card.append(poll);
+      // ไฮไลต์ตัวเลือกที่มีโหวตสูงสุด
+      repaintPoll(post, poll);
     }
 
     card.append(actions);
@@ -336,6 +444,14 @@
     button.disabled = true;
     setStatus('#compose-status', 'กำลังโพสต์…');
     try {
+      // อัปโหลดรูปก่อน (ถ้ามี) — ถ้าอัปโหลดไม่สำเร็จยังโพสต์กระทู้ได้ แต่จะไม่มีรูป
+      let imageUrl = '';
+      if (state.imageFile) {
+        setStatus('#compose-status', 'กำลังอัปโหลดรูป…');
+        const uploaded = await uploadSelectedImage();
+        if (uploaded === null) { button.disabled = false; return; }
+        imageUrl = uploaded;
+      }
       await authFetch('/api/community/posts', {
         method: 'POST',
         body: JSON.stringify({
@@ -343,12 +459,14 @@
           body,
           tags: [...state.selectedTags],
           options: state.options.map((label) => label.trim()).filter(Boolean),
+          image_url: imageUrl,
         }),
       });
       $('#compose-title').value = '';
       $('#compose-body').value = '';
       state.options = [];
       state.selectedTags.clear();
+      clearSelectedImage();
       renderOptions();
       renderTagSelector();
       setStatus('#compose-status', 'โพสต์เรียบร้อยแล้ว', 'ok');
@@ -715,9 +833,15 @@
 
     if (isCommunity) {
       $('#add-option')?.addEventListener('click', addOption);
-      $('#tag-new-add')?.addEventListener('click', createTag);
-      $('#tag-new-input')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); createTag(); } });
       $('#submit-post')?.addEventListener('click', submitPost);
+      $('#compose-image')?.addEventListener('change', (event) => {
+        const file = event.target.files?.[0];
+        state.imageFile = file || null;
+        state.imageUrl = '';
+        previewSelectedImage();
+        if (file) setStatus('#compose-status', '');
+      });
+      $('#compose-image-clear')?.addEventListener('click', clearSelectedImage);
       $('#new-ticket')?.addEventListener('click', openNewTicketModal);
       $('#new-ticket-close')?.addEventListener('click', closeNewTicketModal);
       $('#new-ticket-cancel')?.addEventListener('click', closeNewTicketModal);

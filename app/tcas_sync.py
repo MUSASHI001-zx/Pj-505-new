@@ -25,11 +25,24 @@ ROUNDS_CONCURRENCY = 24
 ROUNDS_BATCH_LIMIT = 600  # ดึงสูงสุดกี่ program ต่อครั้ง (ป้องกันค้างนานเกิน)
 
 # ประเภทสถาบันจาก myTCAS (university_type) → ป้ายที่เราใช้
+# อ้างอิงจาก courses.json ซึ่งมี university_type_name_th ติดมากับทุกหลักสูตร:
+#   1 = ทปอ. (มหาวิทยาลัยรัฐ)   2 = มรภ. (มหาวิทยาลัยราชภัฏ — เป็นรัฐเช่นกัน)
+#   3 = มทร. (ราชมงคล)         4 = เอกชน              5 = อื่น ๆ
+# เดิมเข้าใจผิดว่า 2 = เอกชน ทำให้มหาวิทยาลัยราชภัฏ 16 แห่งถูกจัดผิดกลุ่ม
 TYPE_LABELS = {
     "1": "รัฐ",
-    "2": "เอกชน",
+    "2": "รัฐ",
     "3": "ราชมงคล",
-    "4": "นานาชาติ",
+    "4": "เอกชน",
+    "5": "อื่น ๆ",
+}
+
+# ป้ายย่อตามกลุ่ม (ใช้แสดงผลสั้น ๆ เช่น "ราชภัฏ" / "ทปอ.")
+TYPE_ABBREVIATIONS = {
+    "1": "ทปอ.",
+    "2": "มรภ.",
+    "3": "มทร.",
+    "4": "เอกชน",
     "5": "อื่น ๆ",
 }
 
@@ -165,16 +178,32 @@ def university_record(item: dict[str, Any]) -> dict[str, Any]:
     """แปลงมหาวิทยาลัยจาก myTCAS ให้เข้ากับตาราง institutions"""
     uid = _text(item.get("university_id"))
     type_code = _text(item.get("university_type"))
+    name = _text(item.get("university_name"))
+    # ลิงก์ประกาศรับสมัคร/เกณฑ์จาก myTCAS (มีบางมหาวิทยาลัยเท่านั้น)
+    documents = [
+        {"label": label, "url": url}
+        for label, url in (
+            ("ประกาศรับสมัคร รอบ 1", item.get("file_path_1")),
+            ("ประกาศรับสมัคร รอบ 2", item.get("file_path_2")),
+            ("ประกาศรับสมัคร รอบ 3", item.get("file_path_3")),
+            ("ประกาศรับสมัคร รอบ 4", item.get("file_path_4")),
+            ("แนวทางรับสมัครสำหรับผู้มีความทุพพลภาพ", item.get("file_path_handicap")),
+        )
+        if _text(url)
+    ]
     return {
         "tc_uid": uid,
-        "name": _text(item.get("university_name")),
+        "name": name,
         "name_en": _text(item.get("university_name_en")),
-        "short_name": "",
+        # ชื่อย่อสำหรับโลโก้สี่เหลี่ยม — myTCAS ไม่มีชื่อย่อ ใช้ 2 อักษรแรกของชื่อไทย
+        "short_name": name[:2] if name else "",
         "city": "",
         "kind": TYPE_LABELS.get(type_code, "อื่น ๆ"),
         "tc_type": type_code,
+        "tc_type_name": TYPE_ABBREVIATIONS.get(type_code, "อื่น ๆ"),
         "website_url": f"{MYTCAS_SITE}/university/{uid}" if uid else None,
         "logoUrl": f"https://assets.mytcas.com/i/logo/{uid}.png" if uid else None,
+        "documents": documents,
         "is_published": True,
         "updated_at": _now_iso(),
     }
@@ -390,6 +419,30 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+async def live_universities() -> list[dict[str, Any]]:
+    """รายชื่อมหาวิทยาลัย/สถาบันทั้งหมดจาก myTCAS (ข้อมูลต้นทางจริง)
+
+    คืนรายการที่แปลงเป็นรูปแบบเดียวกับตาราง institutions แล้ว พร้อม kind_label
+    (ป้ายเต็มของกลุ่ม เช่น "รัฐ" / "ราชมงคล" / "เอกชน") เพื่อให้หน้าเว็บแสดงผลตรงต้นทาง
+    """
+    hit = _cached("live_universities", CACHE_TTL)
+    if hit is not None:
+        return hit
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(20.0, connect=10.0),
+        headers={"User-Agent": UA, "Accept": "application/json"},
+    ) as client:
+        universities = await fetch_universities(client)
+    items: list[dict[str, Any]] = []
+    for source in universities:
+        record = university_record(source)
+        if not record.get("name"):
+            continue
+        record["kind_label"] = TYPE_LABELS.get(record.get("tc_type") or "", "อื่น ๆ")
+        items.append(record)
+    return _store("live_universities", items)
+
+
 # ---------------------------------------------------------------------------
 # ซิงก์ลงฐานข้อมูล
 # ---------------------------------------------------------------------------
@@ -409,6 +462,109 @@ async def _filter_columns(repo: Any, table: str, records: list[dict[str, Any]]) 
     if not allowed:
         return []
     return [{k: v for k, v in record.items() if k in allowed} for record in records]
+
+
+async def live_faculty_search(needle: str, take: int = 8) -> list[dict[str, Any]]:
+    """ค้นหาคณะ/หลักสูตรจาก courses.json ของ myTCAS โดยตรง (ไม่ต้องรอซิงก์ลงฐานข้อมูล)
+
+    ใช้เป็นทางสำรอง/เสริมเมื่อตาราง faculties ยังว่างหรือค้นไม่ครบ
+    """
+    key = f"faculty_search:{needle.lower()}"
+    hit = _cached(key, CACHE_TTL)
+    if hit is not None:
+        return hit
+
+    import httpx
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(25.0, connect=10.0),
+        headers={"User-Agent": UA, "Accept": "application/json"},
+    ) as client:
+        courses = await fetch_courses(client)
+
+    lowered = needle.strip().lower()
+    results: list[dict[str, Any]] = []
+    for course in courses:
+        faculty = _text(course.get("faculty_name_th"))
+        program = _text(course.get("program_name_th"))
+        institution = _text(course.get("university_name_th"))
+        if not faculty:
+            continue
+        haystack = f"{faculty} {program} {institution}".lower()
+        if lowered not in haystack:
+            continue
+        results.append({
+            "name": faculty if faculty.lower() in haystack else f"{faculty} · {program}",
+            "institution": institution,
+            "program": program,
+            "degree": _text(course.get("program_type_name_th")),
+            "url": "/quota",
+        })
+        if len(results) >= take:
+            break
+    return _store(key, results)
+
+
+async def sync_institutions(repo: Any) -> dict[str, Any]:
+    """ซิงก์เฉพาะรายชื่อมหาวิทยาลัย/สถาบันจาก myTCAS (เร็ว — ไม่ต้องดึงรอบรับ)
+
+    เติมข้อมูลที่ตาราง institutions ยังขาด (tc_uid, name_en, kind, tc_type, website_url, โลโก้)
+    และซ่อมแถวเก่าที่เคย seed มาโดยไม่มี tc_uid — เติมโดยจับคู่ด้วยชื่อ
+    """
+    summary: dict[str, Any] = {"total": 0, "updated": 0, "inserted": 0, "errors": []}
+    if not repo.configured:
+        summary["errors"].append("Supabase ยังไม่ได้ตั้งค่า")
+        return summary
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(25.0, connect=10.0),
+        headers={"User-Agent": UA, "Accept": "application/json"},
+    ) as client:
+        universities = await fetch_universities(client)
+
+    records = [university_record(item) for item in universities]
+    records = [record for record in records if record.get("tc_uid") and record.get("name")]
+    summary["total"] = len(records)
+
+    # แถวที่มีอยู่แล้วในตาราง — จับคู่ด้วย tc_uid หรือชื่อ (แถวเก่าที่ยังไม่มี tc_uid)
+    existing = await repo.select("institutions", {"select": "id,name,tc_uid", "limit": "1000"})
+    by_uid: dict[str, dict[str, Any]] = {}
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in existing or []:
+        if row.get("tc_uid"):
+            by_uid[str(row["tc_uid"])] = row
+        if row.get("name"):
+            by_name.setdefault(str(row["name"]), row)
+
+    updated = 0
+    inserted = 0
+    for record in records:
+        uid = str(record["tc_uid"])
+        row = by_uid.get(uid) or by_name.get(str(record["name"]))
+        payload = {
+            "tc_uid": uid,
+            "name": record["name"],
+            "name_en": record["name_en"] or None,
+            "kind": record["kind"],
+            "tc_type": record["tc_type"],
+            "website_url": record["website_url"],
+            "logoUrl": record["logoUrl"],
+            "short_name": record["short_name"] or None,
+            "is_published": True,
+            "updated_at": record["updated_at"],
+        }
+        payload = {key: value for key, value in payload.items() if await repo.column_exists("institutions", key)}
+        if row is None:
+            if await repo.upsert("institutions", payload, "tc_uid"):
+                inserted += 1
+        else:
+            # อัปเดตแถวเดิมด้วย tc_uid (เดิมเป็น NULL) — ใช้ id เป็นเงื่อนไขกันชน unique index
+            if await repo.update("institutions", {"id": f"eq.{row['id']}"}, payload):
+                updated += 1
+
+    summary["updated"] = updated
+    summary["inserted"] = inserted
+    return summary
 
 
 async def sync_all(repo: Any, program_limit: int = ROUNDS_BATCH_LIMIT) -> dict[str, Any]:

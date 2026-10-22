@@ -127,6 +127,8 @@ MIGRATION_HINTS = {
     "community_comments": "007_community.sql",
     "community_post_likes": "007_community.sql",
     "community_post_votes": "007_community.sql",
+    "community_option_tally": "014_community_images_and_votes.sql",
+    "community_post_stats": "014_community_images_and_votes.sql",
     "tickets": "007_community.sql",
     "ticket_messages": "007_community.sql",
     "admin_presence": "007_community.sql",

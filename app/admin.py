@@ -10,13 +10,14 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from .auth import database_error, is_admin, log_admin_action, require_database, require_user
+from .community import invalidate_tag_cache
 from .ticket_cleanup import build_helpers as build_ticket_helpers
 
 TICKET_STATUSES = ("open", "answered", "closed")
 STATUS_LABELS = {"open": "รอแอดมินตอบ", "answered": "ตอบแล้ว", "closed": "ปิดแล้ว"}
 USER_ROLES = ("student", "parents", "teacher", "admin")
 ROLE_LABELS = {"student": "นักเรียน", "parents": "ผู้ปกครอง", "teacher": "คุณครู", "admin": "แอดมิน"}
-INSTITUTION_KINDS = ("รัฐ", "เอกชน", "ราชมงคล", "นานาชาติ", "อื่น ๆ")
+INSTITUTION_KINDS = ("รัฐ", "เอกชน", "ราชมงคล", "อื่น ๆ")
 MAX_NAME = 120
 MAX_LIMIT = 200
 
@@ -234,8 +235,11 @@ def build_router(repo: Any) -> APIRouter:
     @router.get("/posts")
     async def list_posts(request: Request, q: str = "", tag: str = "", limit: int = 100) -> dict[str, Any]:
         await admin_user(request)
+        columns = "id,open_id,author_name,title,body,tags,created_at"
+        if await repo.column_exists("community_posts", "image_url"):
+            columns += ",image_url"
         params: dict[str, str] = {
-            "select": "id,open_id,author_name,title,body,tags,created_at",
+            "select": columns,
             "order": "id.desc", "limit": str(max(1, min(limit, MAX_LIMIT))),
         }
         needle = q.strip()
@@ -261,6 +265,7 @@ def build_router(repo: Any) -> APIRouter:
             "author_name": row.get("author_name"),
             "open_id": row.get("open_id"),
             "tags": row.get("tags") or [],
+            "image_url": row.get("image_url"),
             "comments": comment_counts.get(str(row["id"]), 0),
             "created_at": row.get("created_at"),
         } for row in rows]
@@ -317,12 +322,15 @@ def build_router(repo: Any) -> APIRouter:
     @router.post("/tags")
     async def update_tag(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
         actor = await admin_user(request)
-        name = _clean(payload.get("name"))
+        name = _clean(payload.get("name")).lstrip("#").strip()
         color = _clean(payload.get("color")) or "purple"
         if not name:
             raise HTTPException(status_code=400, detail="กรุณากรอกชื่อ tag")
+        if len(name) > 40:
+            raise HTTPException(status_code=400, detail="ชื่อ tag ยาวเกินไป")
         if not await repo.upsert("community_tags", {"name": name, "color": color}, "name"):
             raise database_error(repo, "บันทึก tag ไม่สำเร็จ")
+        invalidate_tag_cache()
         await log_admin_action(repo, actor, "แก้ไข tag", "tag", name, color)
         return {"ok": True, "name": name, "color": color}
 
@@ -336,6 +344,7 @@ def build_router(repo: Any) -> APIRouter:
         for row in posts or []:
             remaining = [tag for tag in (row.get("tags") or []) if tag != name]
             await repo.update("community_posts", {"id": f"eq.{row['id']}"}, {"tags": remaining})
+        invalidate_tag_cache()
         await log_admin_action(repo, actor, "ลบ tag", "tag", name)
         return {"ok": True}
 

@@ -28,6 +28,7 @@ REST API ของ Supabase ทำ DDL ไม่ได้ ต้องใช้ 
 - `008_admin.sql` — สิทธิ์แอดมิน, มหาวิทยาลัย, เกณฑ์รับ, audit log
 - `009_tcas_ingest.sql` — คณะ/หลักสูตร, `tc_uid` สำหรับ sync จาก myTCAS
 - `010_comment_avatar.sql` — รูปโปรไฟล์ของความคิดเห็น
+- `014_community_images_and_votes.sql` — คอลัมน์ `community_posts.image_url`, ดัชนี unique บังคับ "1 คน = 1 ไลก์ / 1 โหวต", view สรุปยอด, และ bucket `community-uploads` สำหรับแนบรูป
 
 ไฟล์ `007_009_all.sql` คือทั้งสามไฟล์แรกรวมกัน (รันซ้ำได้)
 
@@ -59,9 +60,24 @@ SUPABASE_SERVICE_ROLE_KEY=your-server-key
 
 ใช้ callback ของ Supabase Auth ในรูปแบบ `https://<project-ref>.supabase.co/auth/v1/callback` ที่ Google Cloud OAuth Client และใส่ site URL/redirect URL ของเว็บใน Supabase Auth URL Configuration ตามโดเมนที่ deploy จริง
 
+## ช่องค้นหากลาง (แถบบนทุกหน้า)
+
+ช่องค้นหาในแถบด้านบนค้นหาได้จริงทันที แสดงผลเป็น dropdown แยกตามหมวด ไม่ต้องกด Enter ให้พิมพ์แล้วเห็นผล (ค้นหาตั้งแต่ 2 ตัวอักษรขึ้นไป)
+
+| หมวด | แหล่งข้อมูล |
+|---|---|
+| มหาวิทยาลัย / สถาบัน | myTCAS สด (ครบ 92 แห่ง) |
+| คณะ / หลักสูตร | myTCAS `courses.json` สด (ค้นได้แม้ยังไม่ได้ซิงก์ลงฐานข้อมูล) |
+| รอบรับสมัคร | ตาราง `admissions` (ต้องซิงก์ข้อมูลรอบรับก่อน) |
+| ข่าวประกาศ | myTCAS สด |
+
+ค้นหาได้ทั้งชื่อไทยและชื่ออังกฤษ กดผลลัพธ์เพื่อไปยังหน้าที่เกี่ยวข้อง หรือกด Escape เพื่อปิด
+
+**API:** `GET /api/search?q=&limit=` — คืน `{query, groups: {institutions, faculties, admissions, news}, total}`
+
 ## โครงสร้างสำคัญ
 
-`app/main.py` ให้บริการหน้าและ API, `app/repository.py` ติดต่อ Supabase REST, `app/community.py` ระบบกระทู้, `app/tickets.py` ระบบ Ticket, `app/admin.py` ศูนย์จัดการแอดมิน, `app/tcas_ingest.py` ช่องรับข้อมูลจาก myTCAS, `app/tcas_sync.py` + `app/tcas_live.py` ดึงรอบรับสมัครจาก myTCAS, `app/tcas_news.py` ดึงข่าวประกาศจาก myTCAS, `app/scholarships.py` ค้นหาทุนจากกสศ. + Scholarship.in.th, `app/ai_chat.py` AI ที่ปรึกษา, `app/ai_tools.py` เครื่องมือให้ AI ค้นข้อมูลจริง, `app/dekd.py` ดึงข่าวเรื่องสอบจากเด็กดี, `templates/app.html` รวมหน้าจอ, `static/` เก็บ CSS/JS, `supabase/migrations/` เก็บ schema + RLS, `docs/` เก็บคู่มือตั้งค่า Make.com, `public/manus-routes.json` ประกาศ routes สำหรับ Preview/SEO
+`app/main.py` ให้บริการหน้าและ API, `app/repository.py` ติดต่อ Supabase REST + Storage, `app/community.py` ระบบกระทู้, `app/uploads.py` อัปโหลดรูปประกอบกระทู้, `app/tickets.py` ระบบ Ticket, `app/admin.py` ศูนย์จัดการแอดมิน, `app/tcas_ingest.py` ช่องรับข้อมูลจาก myTCAS, `app/tcas_sync.py` + `app/tcas_live.py` ดึงรอบรับสมัครจาก myTCAS, `app/tcas_news.py` ดึงข่าวประกาศจาก myTCAS, `app/scholarships.py` ค้นหาทุนจากกสศ. + Scholarship.in.th, `app/ai_chat.py` AI ที่ปรึกษา, `app/ai_tools.py` เครื่องมือให้ AI ค้นข้อมูลจริง, `app/dekd.py` ดึงข่าวเรื่องสอบจากเด็กดี, `templates/app.html` รวมหน้าจอ, `static/` เก็บ CSS/JS, `supabase/migrations/` เก็บ schema + RLS, `docs/` เก็บคู่มือตั้งค่า Make.com, `public/manus-routes.json` ประกาศ routes สำหรับ Preview/SEO
 
 ## ข้อมูลและความถูกต้อง
 
@@ -80,11 +96,20 @@ SUPABASE_SERVICE_ROLE_KEY=your-server-key
 
 ## ระบบกระทู้ชุมชน (`/community`)
 
-ผู้ใช้สร้างกระทู้เพื่อขอความคิดเห็นจากผู้ใช้คนอื่น เลือก **tag แบบ Discord** (มี tag เริ่มต้น 9 ตัว และสร้าง tag ใหม่ได้เอง สูงสุด 5 tag ต่อกระทู้) ใส่ตัวเลือกเพื่อทำเป็นโพล ผู้ใช้อ่านกระทู้ได้โดยไม่ต้องล็อกอิน แต่กดไลก์ โหวต และคอมเมนต์ต้องเข้าสู่ระบบ (โหวตได้คนละหนึ่งครั้ง โหวตใหม่จะทับของเดิม)
+ผู้ใช้สร้างกระทู้เพื่อขอความคิดเห็นจากผู้ใช้คนอื่น แนบ **รูปภาพประกอบได้ 1 รูป** (JPG/PNG/WEBP/GIF ไม่เกิน 5 MB) เลือก **tag แบบ Discord** จากรายการที่มีอยู่ (มี tag เริ่มต้น 9 ตัว สูงสุด 5 tag ต่อกระทู้ — **ผู้ใช้สร้าง tag ใหม่เองไม่ได้ ผู้ดูแลระบบเป็นคนเพิ่ม**) ใส่ตัวเลือกเพื่อทำเป็นโพล ผู้ใช้อ่านกระทู้ได้โดยไม่ต้องล็อกอิน แต่กดไลก์ โหวต และคอมเมนต์ต้องเข้าสู่ระบบ
+
+**กฎการโหวต:** 1 คน = 1 เสียงต่อกระทู้ (บังคับด้วย unique index ในฐานข้อมูล)
+- โหวตตัวเลือกอื่น = เปลี่ยนคำตอบ (ทับของเดิม ไม่ลบแล้วใหม่ ข้อมูลไม่หายกลางคัน)
+- กดตัวเลือกเดิมซ้ำ = ยกเลิกโหวต
+- กดไลก์ = สลับสถานะไลก์/ไม่ไลก์ (คนเดียวไลก์กระทู้เดียวได้ 1 ครั้ง)
 
 **ตั้งค่าครั้งแรก:** รัน `supabase/migrations/007_community.sql` ใน Supabase SQL Editor (สร้าง `community_tags`, `community_posts`, `community_post_options`, `community_comments`, `community_post_likes`, `community_post_votes`, `tickets`, `ticket_messages`, `admin_presence` และคอลัมน์ `users.is_admin` — เปิด RLS ไม่มี policy จึงเข้าถึงได้เฉพาะ backend ผ่าน service role) ถ้ายังไม่รัน หน้าเว็บจะขึ้นข้อความแนะนำให้รัน migration แทนที่จะพัง
 
-**API:** `GET /api/community/tags` (อ่านได้ทุกคน), `POST /api/community/tags`, `GET /api/community/posts?tag=&q=`, `GET /api/community/posts/{id}`, `POST /api/community/posts`, `POST /api/community/posts/{id}/like`, `POST /api/community/posts/{id}/vote`, `POST /api/community/posts/{id}/comments`, `DELETE /api/community/posts/{id}` (เฉพาะเจ้าของกระทู้หรือแอดมิน)
+**สำหรับรูปภาพและกฎ 1 คน = 1 เสียง:** รัน `supabase/migrations/014_community_images_and_votes.sql` (เพิ่ม `community_posts.image_url`, ดัชนี unique บังคับ 1 คน = 1 ไลก์/1 โหวต, view สรุปยอด `community_option_tally` / `community_post_stats` และ bucket `community-uploads`) — ถ้ายังไม่รัน ระบบแนบรูปใช้ไม่ได้แต่ส่วนอื่นยังทำงานได้ตามปกติ
+
+**API:** `GET /api/community/tags` (อ่านได้ทุกคน), `POST /api/community/uploads` (อัปโหลดรูป), `GET /api/community/posts?tag=&q=`, `GET /api/community/posts/{id}`, `POST /api/community/posts`, `POST /api/community/posts/{id}/like`, `POST /api/community/posts/{id}/vote`, `POST /api/community/posts/{id}/comments`, `DELETE /api/community/posts/{id}` (เฉพาะเจ้าของกระทู้หรือแอดมิน)
+
+**จัดการ tag:** ผู้ดูแลระบบเพิ่ม/เปลี่ยนสี/ลบ tag ได้ที่หน้า `/admin` แท็บ "กระทู้ชุมชน" (`POST /api/admin/tags`, `DELETE /api/admin/tags/{name}`)
 
 **หมายเหตุเรื่องความเร็ว:** โปรเจกต์ Supabase อยู่ในโตเกียว จึงมี latency ราว 150–280 ms ต่อ request — `app/repository.py` จึงใช้ HTTP client เดียวร่วมกันทั้งแอป (keep-alive + pool) ยิง query ที่ไม่ขึ้นกันกันพร้อมกัน (`asyncio.gather`) และมี retry อัตโนมัติเมื่อ connection หลุด นอกจากนี้ tag ถูก cache 60 วินาที ถ้ายิงจากต่างประเทศควรพิจารณา Supabase region ใกล้ผู้ใช้
 
@@ -173,6 +198,30 @@ myTCAS เป็นเว็บ static (Astro) — หน้า `/news/` มี�
 
 ข้อมูลที่ sync เข้ามาจะแสดงบนหน้า **"ข้อมูลมหาวิทยาลัย"** (`/institutes` — ค้นหาและกรองตามประเภทได้) และแก้ไข/ซ่อนรายการได้ที่หลังบ้าน `/admin`
 
+### ข้อมูลมหาวิทยาลัย — ดึงสดจาก myTCAS เสมอ
+
+หน้า `/institutes` ดึง **ชื่อ ชื่ออังกฤษ ประเภท โลโก้ และลิงก์ จาก myTCAS โดยตรง** (ไม่ต้องรอซิงก์) ครบทั้ง **92 แห่ง** โดย `courses.json` ยืนยันการจัดกลุ่มได้ดังนี้
+
+| `university_type` | ความหมายจาก myTCAS | กลุ่มที่แสดงบนเว็บ | จำนวน |
+|---|---|---|---|
+| `1` | ทปอ. (มหาวิทยาลัยรัฐ) | รัฐ | 34 |
+| `2` | มรภ. (มหาวิทยาลัยราชภัฏ — **เป็นรัฐเช่นกัน**) | รัฐ | 16 |
+| `3` | มทร. (ราชมงคล) | ราชมงคล | 9 |
+| `4` | เอกชน | เอกชน | 31 |
+| `5` | อื่น ๆ (เช่น สถาบันพระบรมราชชนก) | อื่น ๆ | 2 |
+
+> **หมายเหตุ:** เดิมแมปผิดว่า `2` = เอกชน ทำให้มหาวิทยาลัยราชภัฏ 16 แห่งไปโผล่ผิดกลุ่ม (และกลุ่ม "นานาชาติ" ซึ่งไม่มีอยู่จริงใน myTCAS ถูกลบออก) ตอนนี้แก้แล้วใน `app/tcas_sync.py` (`TYPE_LABELS`)
+
+**จังหวัด/เมือง:** myTCAS ไม่มีข้อมูลนี้ในไฟล์ JSON สาธารณะ หน้าเว็บจึงแสดงช่องจังหวัดว่างไว้ ให้แอดมินเติมที่หลังบ้าน `/admin` ได้ (ระบบจะถือค่าที่แอดมินเติมไว้เหนือค่าว่าง)
+
+**เติมข้อมูลในฐานข้อมูล (ไม่บังคับ):** ถ้าอยากเก็บข้อมูลไว้ใน Supabase ด้วย (เช่น ใช้ค้นหา/กรองฝั่ง DB) ให้รัน
+
+```bash
+python scripts/sync_mytcas.py --institutions   # ซิงก์เฉพาะรายชื่อมหาวิทยาลัย (เร็ว ~2 วินาที)
+```
+
+สคริปต์นี้จะเติม `tc_uid`, `name_en`, `kind`, `tc_type`, `website_url`, `short_name` ให้แถวเดิมที่ยังว่าง (จับคู่ด้วยชื่อ) และรันซ้ำได้โดยไม่เกิดข้อมูลซ้ำ
+
 ## ระบบค้นหาทุน (`/scholarships`)
 
 หน้า **"ค้นหาทุน"** รวมข้อมูลทุนการศึกษาจาก 2 แหล่งมาไว้ในที่เดียว และค้นหาได้ทั้งภาษาไทยและอังกฤษ
@@ -202,7 +251,7 @@ myTCAS เปิดข้อมูลเป็น **JSON สาธารณะ�
 
 | ไฟล์ | เนื้อหา |
 |---|---|
-| `universities.json` | มหาวิทยาลัย/สถาบัน 92 แห่ง (พร้อมชื่อไทย-อังกฤษ ประเภท) |
+| `universities.json` | มหาวิทยาลัย/สถาบัน 92 แห่ง (พร้อมชื่อไทย-อังกฤษ ประเภท และลิงก์ประกาศรับสมัคร PDF) |
 | `courses.json` | คณะ/หลักสูตร/สาขา 4,619 รายการ (พร้อมค่าเล่าเรียน อัตราการจบการศึกษา อัตราการจ้างงาน เงินเดือน) |
 | `rounds/{programId}.json` | รอบรับสมัคร 19,548 รายการ (พร้อมโครงการ โควตา เกณฑ์คะแนน วันปิดรับ วันสัมภาษณ์ ลิงก์ประกาศ) |
 

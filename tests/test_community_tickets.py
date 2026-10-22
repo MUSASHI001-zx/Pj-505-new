@@ -21,6 +21,8 @@ class FakeRepo:
     def __init__(self) -> None:
         self.tables: dict[str, list[dict[str, Any]]] = {}
         self.next_id: dict[str, int] = {}
+        # True = มี view สรุปยอด (migration 014 แล้ว) / False = ยังไม่รัน (โค้ดสำรอง)
+        self.use_views = True
         self.configured = True
         self.auth_configured = True
         self.url = "https://fake.supabase.co"
@@ -62,7 +64,10 @@ class FakeRepo:
                         return False
         return True
 
-    async def select(self, table: str, params: dict[str, str]) -> list[dict[str, Any]] | None:
+    async def select(self, table: str, params: dict[str, str], quiet: bool = False) -> list[dict[str, Any]] | None:
+        # เลียนแบบ PostgREST: อ่านตาราง/view ที่ไม่มีอยู่ = error (None) ไม่ใช่รายการว่าง
+        if table not in self.tables:
+            return None
         rows = [row for row in self._table(table) if self._match(row, params)]
         if "tags" in params and params["tags"].startswith("cs."):
             wanted = params["tags"][3:].strip("{}")
@@ -72,6 +77,7 @@ class FakeRepo:
 
     async def insert(self, table: str, payload: dict[str, Any]) -> bool:
         self._table(table).append(dict(payload))
+        self._refresh_views()
         return True
 
     async def insert_returning(self, table: str, payload: dict[str, Any], on_conflict: str | None = None) -> dict[str, Any] | None:
@@ -80,25 +86,32 @@ class FakeRepo:
             for existing in rows:
                 if existing.get(on_conflict) == payload[on_conflict]:
                     existing.update(payload)
+                    self._refresh_views()
                     return existing
         self.next_id[table] = self.next_id.get(table, 0) + 1
         record = {"id": self.next_id[table], **payload}
         rows.append(record)
+        self._refresh_views()
         return record
 
     async def upsert(self, table: str, record: dict[str, Any], on_conflict: str) -> dict[str, Any] | None:
+        """upsert ตามคอลัมน์ประกอบ (รองรับ on_conflict หลายคอลัมน์คั่นด้วยจุลภาค)"""
         rows = self._table(table)
+        keys = [part.strip() for part in on_conflict.split(",") if part.strip()]
         for existing in rows:
-            if existing.get(on_conflict) == record.get(on_conflict):
+            if all(existing.get(key) == record.get(key) for key in keys):
                 existing.update(record)
+                self._refresh_views()
                 return existing
         rows.append(dict(record))
+        self._refresh_views()
         return record
 
     async def update(self, table: str, params: dict[str, str], record: dict[str, Any]) -> bool:
         for row in self._table(table):
             if self._match(row, params):
                 row.update(record)
+                self._refresh_views()
                 return True
         return False
 
@@ -106,7 +119,13 @@ class FakeRepo:
         rows = self._table(table)
         keep = [row for row in rows if not self._match(row, params)]
         self.tables[table] = keep
+        self._refresh_views()
         return True
+
+    def _refresh_views(self) -> None:
+        """อัปเดต view สรุปยอดให้ตรงกับข้อมูล (ถ้าเปิดใช้ view ไว้)"""
+        if self.use_views:
+            rebuild_views(self)
 
     async def column_exists(self, table: str, column: str) -> bool:
         rows = self._table(table)
@@ -146,7 +165,45 @@ def make_repo() -> FakeRepo:
     repo.tables["user_settings"] = [
         {"open_id": "u-user", "display_name": "น้องเอย", "avatar_key": "a01"},
     ]
+    # ตาราง community ที่ระบบใช้ (ถ้าไม่มีจะถูกมองว่า "ยังไม่ได้รัน migration")
+    for name in ("community_tags", "community_posts", "community_post_options",
+                 "community_comments", "community_post_likes", "community_post_votes"):
+        repo.tables[name] = []
+    # tag เริ่มต้น (ตามที่ migration 007 seed ไว้)
+    repo.tables["community_tags"] = [
+        {"id": 1, "name": "TCAS", "color": "purple"},
+        {"id": 2, "name": "คณะในฝัน", "color": "blue"},
+    ]
     return repo
+
+
+def rebuild_views(repo: FakeRepo) -> None:
+    """สร้าง view สรุปยอดเหมือน migration 014 — ให้ทดสอบเส้นทางหลัก (อ่านยอด exact)"""
+    options = repo.tables.get("community_post_options") or []
+    votes = repo.tables.get("community_post_votes") or []
+    likes = repo.tables.get("community_post_likes") or []
+    comments = repo.tables.get("community_comments") or []
+
+    tally = []
+    for option in options:
+        tally.append({
+            "post_id": option["post_id"],
+            "option_id": option["id"],
+            "label": option.get("label") or "",
+            "sort_order": option.get("sort_order") or 0,
+            "votes": sum(1 for vote in votes if vote["option_id"] == option["id"]),
+        })
+    repo.tables["community_option_tally"] = tally
+
+    stats = []
+    for post_id in {row["post_id"] for row in votes} | {row["post_id"] for row in likes} | {row["post_id"] for row in comments}:
+        stats.append({
+            "post_id": post_id,
+            "likes": sum(1 for row in likes if row["post_id"] == post_id),
+            "total_votes": sum(1 for row in votes if row["post_id"] == post_id),
+            "comments_count": sum(1 for row in comments if row["post_id"] == post_id),
+        })
+    repo.tables["community_post_stats"] = stats
 
 
 def main() -> int:
@@ -190,7 +247,7 @@ def main() -> int:
     })
     check("สร้างกระทู้ได้", created.status_code == 201, created.text[:200])
     post = created.json()["post"]
-    check("ตัด tag ซ้ำให้เหลือ 3 ตัว", len(post["tags"]) == 3, str(post.get("tags")))
+    check("tag ที่ไม่มีอยู่จริงถูกตัดออก (ผู้ใช้สร้าง tag เองไม่ได้)", post["tags"] == ["TCAS", "คณะในฝัน"], str(post.get("tags")))
     check("ตัวเลือกโพลถูกตัดซ้ำเหลือ 2", len(post["options"]) == 2, str([o["label"] for o in post.get("options", [])]))
 
     listed = client.get("/api/community/posts")
@@ -206,16 +263,31 @@ def main() -> int:
 
     liked = client.post(f"/api/community/posts/{post['id']}/like")
     check("กดไลก์ได้", liked.status_code == 200 and liked.json()["liked"] is True)
+    check("ไลก์แล้วส่งคืนจำนวนไลก์", liked.json().get("likes") == 1, str(liked.json().get("likes")))
     unliked = client.post(f"/api/community/posts/{post['id']}/like")
     check("กดไลก์ซ้ำ = ยกเลิก", unliked.json()["liked"] is False)
+    check("ยกเลิกไลก์แล้วจำนวนกลับเป็น 0", unliked.json().get("likes") == 0, str(unliked.json().get("likes")))
 
     option_id = post["options"][0]["id"]
     voted = client.post(f"/api/community/posts/{post['id']}/vote", json={"option_id": option_id})
     check("โหวตได้", voted.status_code == 200)
+    check("โหวตแล้ว my_vote ตรงกับตัวเลือก", voted.json().get("my_vote") == option_id, str(voted.json().get("my_vote")))
     voted2 = client.post(f"/api/community/posts/{post['id']}/vote", json={"option_id": post['options'][1]['id']})
     check("โหวตทับของเดิมได้", voted2.status_code == 200)
+    check("โหวตทับแล้ว my_vote เปลี่ยนตาม", voted2.json().get("my_vote") == post['options'][1]['id'])
     after = client.get(f"/api/community/posts/{post['id']}").json()
-    check("นับโหวตรวมได้ 1 คน", after["post"]["total_votes"] == 1, str(after["post"]["total_votes"]))
+    check("นับโหวตรวมได้ 1 คน (1 คน = 1 เสียง)", after["post"]["total_votes"] == 1, str(after["post"]["total_votes"]))
+
+    # กดตัวเลือกเดิมซ้ำ = ยกเลิกโหวต
+    cancelled = client.post(f"/api/community/posts/{post['id']}/vote", json={"option_id": post['options'][1]['id']})
+    check("กดตัวเลือกเดิมซ้ำ = ยกเลิกโหวต", cancelled.json().get("my_vote") is None, str(cancelled.json().get("my_vote")))
+    check("ยกเลิกโหวตแล้วยอดรวมเป็น 0", cancelled.json().get("total_votes") == 0, str(cancelled.json().get("total_votes")))
+
+    # โหวตใหม่หลังยกเลิก
+    client.post(f"/api/community/posts/{post['id']}/vote", json={"option_id": option_id})
+    after2 = client.get(f"/api/community/posts/{post['id']}").json()
+    check("โหวตใหม่ได้ และนับเป็น 1 คน", after2["post"]["total_votes"] == 1, str(after2["post"]["total_votes"]))
+    check("ยอดโหวตถูกตัวเลือก", after2["post"]["options"][0]["votes"] == 1, str(after2["post"]["options"][0]["votes"]))
 
     comment = client.post(f"/api/community/posts/{post['id']}/comments", json={"body": "ช่วยด้วย!"})
     check("เพิ่มความคิดเห็นได้", comment.status_code == 201)
@@ -232,15 +304,24 @@ def main() -> int:
     check("กระทู้ไม่มีหัวข้อถูกปฏิเสธ", no_title.status_code == 400)
 
     new_tag = client.post("/api/community/tags", json={"name": "#ทดสอบแท็ก"})
-    check("สร้าง tag ใหม่ได้", new_tag.status_code == 200 and new_tag.json()["tag"]["name"] == "ทดสอบแท็ก")
+    check("ผู้ใช้สร้าง tag เองไม่ได้ (ปิดปลายทางแล้ว)", new_tag.status_code in (404, 405), str(new_tag.status_code))
+
+    admin_tag = client.post("/api/admin/tags", headers={"x-test-user": "u-admin"}, json={"name": "#ทดสอบแท็ก", "color": "teal"})
+    check("แอดมินสร้าง tag ใหม่ได้", admin_tag.status_code == 200, admin_tag.text[:150])
+    check("tag ที่แอดมินสร้างอยู่ในรายการ", any(
+        item["name"] == "ทดสอบแท็ก" for item in client.get("/api/community/tags").json()["items"]
+    ))
+    # tag ที่แอดมินสร้าง ผู้ใช้เลือกใช้ได้
+    allowed_tag = client.post("/api/community/posts", json={"title": "ใช้ tag ที่แอดมินสร้าง", "tags": ["ทดสอบแท็ก"]})
+    check("ผู้ใช้เลือกใช้ tag ที่มีอยู่จริงได้", allowed_tag.json()["post"]["tags"] == ["ทดสอบแท็ก"], str(allowed_tag.json()["post"]["tags"]))
 
     # tag ที่มีอักขระพิเศษของ PostgREST ต้องไม่ทำให้ query พัง
     weird = client.post("/api/community/posts", json={
         "title": "ทดสอบ tag พิเศษ", "body": "x", "tags": ["a,b(c)"],
     })
-    check("tag ที่มีอักขระพิเศษสร้างได้", weird.status_code == 201, weird.text[:150])
+    check("tag ที่มีอักขระพิเศษถูกตัดทิ้ง (ไม่มีในระบบ)", weird.status_code == 201 and weird.json()["post"]["tags"] == [], weird.text[:150])
     still_lists = client.get("/api/community/posts")
-    check("ยังอ่านรายการกระทู้ได้หลังมี tag พิเศษ", still_lists.status_code == 200 and len(still_lists.json()["items"]) == 2)
+    check("ยังอ่านรายการกระทู้ได้หลังมี tag พิเศษ", still_lists.status_code == 200 and len(still_lists.json()["items"]) == 3)
 
     print("\n=== ระบบ Ticket ===")
     ticket = client.post("/api/tickets", json={"subject": "ล็อกอินไม่ได้", "body": "ช่วยด้วย", "category": "ปัญหาการใช้งาน"})

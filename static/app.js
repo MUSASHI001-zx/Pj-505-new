@@ -29,7 +29,7 @@ window.addEventListener('DOMContentLoaded', () => {
     newsState.limit += NEWS_PAGE_SIZE;
     loadNews();
   });
-  $('#global-search')?.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.currentTarget.value.trim()) window.location.href = `/news?q=${encodeURIComponent(event.currentTarget.value.trim())}`; });
+  initGlobalSearch();
   loadNews();
   loadInstitutes();
   initInstituteSearch();
@@ -163,6 +163,8 @@ function applyUserIdentity(user) {
   ['#header-avatar', '#menu-avatar'].forEach((selector) => { const node = $(selector); if (node) node.textContent = initial; });
   $('#menu-name') && ($('#menu-name').textContent = name);
   $('#menu-email') && ($('#menu-email').textContent = user.email || '');
+  // ข้อความต้อนรับหน้าแรก — ใช้ชื่อผู้ใช้ (แอดมินจะเขียนทับด้วยชื่อที่ผู้ใช้ตั้งเองในภายหลัง)
+  $('#greeting-name') && ($('#greeting-name').textContent = name);
 }
 
 async function changeAccountRole(role) {
@@ -406,6 +408,102 @@ async function loadNews() {
   }
 }
 
+// ---------- ค้นหากลาง (มหาวิทยาลัย + คณะ + รอบรับสมัคร + ข่าว) ----------
+const SEARCH_GROUP_LABELS = {
+  institutions: 'มหาวิทยาลัย / สถาบัน',
+  faculties: 'คณะ / หลักสูตร',
+  admissions: 'รอบรับสมัคร',
+  news: 'ข่าวประกาศ',
+};
+const SEARCH_GROUP_ICONS = { institutions: '⌘', faculties: '▤', admissions: '◈', news: '☷' };
+
+function initGlobalSearch() {
+  const input = $('#global-search');
+  const box = $('#global-search-results');
+  if (!input || !box) return;
+  let timer = null;
+  let lastQuery = '';
+
+  const close = () => { box.hidden = true; box.replaceChildren(); };
+
+  const render = (data) => {
+    const groups = (data && data.groups) || {};
+    const keys = Object.keys(groups);
+    if (!keys.length) {
+      box.replaceChildren(el('p', 'gs-empty', `ไม่พบข้อมูลที่ตรงกับ "${(data && data.query) || ''}"`));
+      box.hidden = false;
+      return;
+    }
+    const nodes = [];
+    keys.forEach((key) => {
+      const items = groups[key] || [];
+      if (!items.length) return;
+      nodes.push(el('div', 'gs-group-title', `${SEARCH_GROUP_ICONS[key] || '•'} ${SEARCH_GROUP_LABELS[key] || key}`));
+      items.forEach((item) => {
+        const row = el('button', 'gs-item');
+        row.type = 'button';
+        if (item.logo_url) {
+          const img = el('img', 'gs-logo');
+          img.src = item.logo_url;
+          img.alt = '';
+          img.loading = 'lazy';
+          img.addEventListener('error', () => img.remove());
+          row.append(img);
+        } else {
+          row.append(el('span', 'gs-dot'));
+        }
+        const copy = el('div', 'gs-copy');
+        copy.append(el('b', '', item.name || '—'));
+        const sub = [item.institution, item.program, item.summary].filter(Boolean).join(' · ');
+        if (sub) copy.append(el('small', '', sub));
+        row.append(copy);
+        row.addEventListener('click', () => {
+          const target = item.url || '/';
+          close();
+          input.value = '';
+          if (/^https?:/i.test(target)) window.open(target, '_blank', 'noopener');
+          else window.location.href = target;
+        });
+        nodes.push(row);
+      });
+    });
+    box.replaceChildren(...nodes);
+    box.hidden = false;
+  };
+
+  const run = async () => {
+    const query = input.value.trim();
+    if (query.length < 2) { close(); return; }
+    if (query === lastQuery && !box.hidden) return;
+    lastQuery = query;
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      render(data);
+    } catch {
+      box.replaceChildren(el('p', 'gs-empty', 'ค้นหาไม่สำเร็จ — ลองใหม่อีกครั้ง'));
+      box.hidden = false;
+    }
+  };
+
+  input.addEventListener('input', () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(run, 260);
+  });
+  input.addEventListener('focus', () => { if (input.value.trim().length >= 2) run(); });
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { close(); input.blur(); }
+    // Enter: เปิดผลลัพธ์แรกที่เจอ
+    if (event.key === 'Enter') {
+      const first = box.querySelector('.gs-item');
+      if (first) { event.preventDefault(); first.click(); }
+    }
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.search-wrap')) close();
+  });
+}
+
 // ---------- มหาวิทยาลัย + เกณฑ์รับ (ข้อมูลจากตาราง ซึ่งหลังบ้านแอดมินจัดการได้) ----------
 const INSTITUTE_TONES = ['rose', 'violet', 'teal', 'gold', 'indigo', 'green', 'blue', 'pink'];
 
@@ -424,13 +522,20 @@ function buildInstituteCard(item, index) {
   }
   const text = el('div');
   text.append(el('h3', '', item.name || '(ไม่มีชื่อ)'));
-  const meta = [item.city, item.kind].filter(Boolean).join(' · ');
-  text.append(el('p', '', meta || item.name_en || 'สถาบันอุดมศึกษา'));
+  // แสดงเฉพาะจังหวัด (ถ้ามี) — ไม่แสดงประเภทสถาบัน (รัฐ/เอกชน/ราชมงคล)
+  const meta = (item.city || '').trim();
+  if (meta) text.append(el('p', '', meta));
+  if (item.name_en) text.append(el('small', 'inst-name-en', item.name_en));
   card.append(logo, text, el('button', 'round-arrow', '→'));
+  // คลิกแล้วไปดูรายละเอียดที่ myTCAS (แหล่งอ้างอิงต้นทาง)
+  if (item.website_url) {
+    card.classList.add('has-link');
+    card.addEventListener('click', () => window.open(item.website_url, '_blank', 'noopener'));
+  }
   return card;
 }
 
-const instState = { items: [], kind: '', query: '' };
+const instState = { items: [], query: '' };
 
 async function loadInstitutes() {
   const grid = $('#inst-grid');
@@ -450,9 +555,8 @@ function renderInstitutes() {
   if (!grid || !instState.items.length) return;
   const needle = instState.query.toLowerCase();
   const items = instState.items.filter((item) => {
-    const matchKind = !instState.kind || item.kind === instState.kind;
-    const haystack = `${item.name || ''} ${item.short_name || ''} ${item.city || ''} ${item.kind || ''}`.toLowerCase();
-    return matchKind && (!needle || haystack.includes(needle));
+    const haystack = `${item.name || ''} ${item.name_en || ''} ${item.short_name || ''} ${item.city || ''}`.toLowerCase();
+    return !needle || haystack.includes(needle);
   });
   if (!items.length) {
     grid.replaceChildren(el('p', 'acc-empty', 'ไม่พบสถาบันที่ตรงกับเงื่อนไข'));
@@ -472,12 +576,6 @@ function initInstituteSearch() {
     const value = event.target.value.trim();
     timer = window.setTimeout(() => { instState.query = value; renderInstitutes(); }, 250);
   });
-  $$('[data-inst-kind]').forEach((button) => button.addEventListener('click', () => {
-    $$('[data-inst-kind]').forEach((item) => item.classList.remove('active'));
-    button.classList.add('active');
-    instState.kind = button.dataset.instKind;
-    renderInstitutes();
-  }));
 }
 
 function buildAdmissionRow(item) {
@@ -929,6 +1027,19 @@ async function launchSupabase(config) {
 window.myAccount = null;
 
 function announceGuest(reason) {
+  // ยังไม่ได้ล็อกอิน — ข้อความต้อนรับใช้คำทั่วไป ไม่อ้างชื่อใคร
+  const greeting = $('#greeting-name');
+  if (greeting) greeting.textContent = 'เพื่อน';
+  ['#header-name', '#menu-name'].forEach((selector) => { const node = $(selector); if (node) node.textContent = ''; });
+  ['#header-avatar', '#menu-avatar'].forEach((selector) => {
+    const node = $(selector);
+    if (!node) return;
+    node.classList.remove('has-img');
+    node.style.backgroundImage = '';
+    node.textContent = '✦';
+  });
+  const email = $('#menu-email');
+  if (email) email.textContent = 'ยังไม่ได้เข้าสู่ระบบ';
   document.dispatchEvent(new CustomEvent('account:guest', { detail: { reason } }));
 }
 
@@ -970,6 +1081,9 @@ function applyAvatar(profile) {
   const name = profile.display_name;
   if (name) {
     ['#header-name', '#menu-name'].forEach((selector) => { const node = $(selector); if (node) node.textContent = name; });
+    // ข้อความต้อนรับหน้าแรก — ใช้ชื่อผู้ใช้จริง
+    const greeting = $('#greeting-name');
+    if (greeting) greeting.textContent = name;
   }
 }
 

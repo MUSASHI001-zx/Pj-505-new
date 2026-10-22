@@ -3,6 +3,7 @@
 รัน: python scripts/sync_mytcas.py              # ดึงครั้งแรก 600 program
      python scripts/sync_mytcas.py --all        # ดึงครบทั้งหมด (ช้า ~5 นาที)
      python scripts/sync_mytcas.py --limit 200  # กำหนดจำนวน program ต่อรอบ
+     python scripts/sync_mytcas.py --institutions  # ซิงก์เฉพาะรายชื่อมหาวิทยาลัย (เร็ว)
      python scripts/sync_mytcas.py --dry-run    # ดึงและนับอย่างเดียว ไม่เขียนฐานข้อมูล
 
 หมายเหตุ: ต้องรัน supabase/migrations/011_tcas_mytcas_sync.sql ก่อน (เพิ่มคอลัมน์เกณฑ์คะแนน)
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app.repository import SupabaseRepository  # noqa: E402
-from app.tcas_sync import ROUNDS_BATCH_LIMIT, sync_all  # noqa: E402
+from app.tcas_sync import ROUNDS_BATCH_LIMIT, sync_all, sync_institutions  # noqa: E402
 
 
 async def main() -> int:
@@ -27,12 +28,27 @@ async def main() -> int:
     parser.add_argument("--limit", type=int, default=ROUNDS_BATCH_LIMIT, help="จำนวน program ที่ดึงรอบรับต่อรอบ")
     parser.add_argument("--all", action="store_true", help="ดึงครบทุก program (ช้า)")
     parser.add_argument("--dry-run", action="store_true", help="ไม่เขียนฐานข้อมูล")
+    parser.add_argument("--institutions", action="store_true", help="ซิงก์เฉพาะรายชื่อมหาวิทยาลัย/สถาบัน (เร็ว)")
     args = parser.parse_args()
 
     repo = SupabaseRepository()
     if not repo.configured:
         print("Supabase ยังไม่ได้ตั้งค่า — ตรวจค่าใน .env")
         return 1
+
+    # โหมดซิงก์เฉพาะมหาวิทยาลัย — เร็ว ใช้เติมข้อมูลที่ตารางยังขาด
+    if args.institutions:
+        started = time.monotonic()
+        print("กำลังซิงก์รายชื่อมหาวิทยาลัย/สถาบันจาก myTCAS...")
+        result = await sync_institutions(repo)
+        elapsed = time.monotonic() - started
+        print(f"\nเสร็จใน {elapsed:.1f} วินาที")
+        print(f"  จาก myTCAS   : {result['total']} แห่ง")
+        print(f"  อัปเดตแถวเดิม: {result['updated']}")
+        print(f"  เพิ่มแถวใหม่ : {result['inserted']}")
+        for message in result.get("errors", []):
+            print(f"  ข้อผิดพลาด: {message}")
+        return 0
 
     limit = 999_999 if args.all else args.limit
     started = time.monotonic()

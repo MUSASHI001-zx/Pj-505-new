@@ -191,21 +191,26 @@ class SupabaseRepository:
         }
 
     # ---------- helpers ทั่วไป (ใช้กับระบบบัญชี) ----------
-    async def select(self, table: str, params: dict[str, str]) -> list[dict[str, Any]] | None:
-        """อ่านแถวจากตาราง คืน None เมื่อล้มเหลว (ดู last_database_error)."""
+    async def select(self, table: str, params: dict[str, str], quiet: bool = False) -> list[dict[str, Any]] | None:
+        """อ่านแถวจากตาราง คืน None เมื่อล้มเหลว (ดู last_database_error).
+
+        quiet=True ใช้ตอนเช็คว่าตาราง/view มีอยู่จริงไหม — ไม่ต้องพิมพ์ error รกหน้าจอ
+        """
         if not self.configured:
             return None
         try:
             response = await self._request("GET", table, headers=self._headers(), params=params)
             if response.is_error:
                 self.last_database_error = f"select {table} failed: {response.status_code} {response.text[:300]}"
-                print(self.last_database_error)
+                if not quiet:
+                    print(self.last_database_error)
                 return None
             self.last_database_error = None
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
             self.last_database_error = f"select {table} error: {exc}"
-            print(self.last_database_error)
+            if not quiet:
+                print(self.last_database_error)
             return None
 
     async def upsert(self, table: str, record: dict[str, Any], on_conflict: str) -> dict[str, Any] | None:
@@ -356,4 +361,60 @@ class SupabaseRepository:
         except httpx.HTTPError as exc:
             self.last_database_error = f"update {table} error: {exc}"
             print(self.last_database_error)
+            return False
+
+    # ---------- Supabase Storage ----------
+    async def storage_upload(self, bucket: str, path: str, data: bytes, content_type: str) -> bool:
+        """อัปโหลดไฟล์ขึ้น Supabase Storage (เขียนผ่าน service role — ข้าม RLS)"""
+        if not self.configured:
+            return False
+        try:
+            client = self._get_client()
+            response = await client.post(
+                f"{self.url}/storage/v1/object/{bucket}/{path}",
+                headers={
+                    "apikey": self.service_key,
+                    "Authorization": f"Bearer {self.service_key}",
+                    "Content-Type": content_type,
+                    "x-upsert": "false",
+                },
+                content=data,
+            )
+            if response.is_error:
+                self.last_database_error = f"storage upload failed: {response.status_code} {response.text[:300]}"
+                print(self.last_database_error)
+                return False
+            self.last_database_error = None
+            return True
+        except httpx.HTTPError as exc:
+            self.last_database_error = f"storage upload error: {exc}"
+            print(self.last_database_error)
+            return False
+
+    async def storage_delete(self, bucket: str, path: str) -> bool:
+        """ลบไฟล์ใน Supabase Storage (ล้มเหลวไม่ทำให้อะไรพัง)"""
+        if not self.configured:
+            return False
+        try:
+            client = self._get_client()
+            response = await client.delete(
+                f"{self.url}/storage/v1/object/{bucket}/{path}",
+                headers={"apikey": self.service_key, "Authorization": f"Bearer {self.service_key}"},
+            )
+            return not response.is_error
+        except httpx.HTTPError:
+            return False
+
+    async def storage_bucket_exists(self, bucket: str) -> bool:
+        """เช็คว่ามี bucket ใน Storage หรือยัง (ใช้บอกว่าระบบแนบรูปใช้ได้หรือไม่)"""
+        if not self.configured:
+            return False
+        try:
+            client = self._get_client()
+            response = await client.get(
+                f"{self.url}/storage/v1/bucket/{bucket}",
+                headers={"apikey": self.service_key, "Authorization": f"Bearer {self.service_key}"},
+            )
+            return not response.is_error
+        except httpx.HTTPError:
             return False

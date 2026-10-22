@@ -277,6 +277,19 @@
     } catch (error) { toast(error.message); }
   }
 
+  async function createTag() {
+    const input = $('#admin-tag-new');
+    if (!input) return;
+    const name = input.value.trim().replace(/^#/, '');
+    if (!name) { toast('กรุณากรอกชื่อ tag'); return; }
+    try {
+      await authFetch('/api/admin/tags', { method: 'POST', body: JSON.stringify({ name, color: 'purple' }) });
+      input.value = '';
+      await loadTags();
+      toast(`เพิ่ม tag #${name} แล้ว`);
+    } catch (error) { toast(error.message); }
+  }
+
   async function loadTags() {
     const box = $('#admin-tag-list');
     if (!box) return;
@@ -347,7 +360,6 @@
         const nameCell = el('td');
         nameCell.append(el('b', '', item.name || '(ไม่มีชื่อ)'));
         if (item.short_name) nameCell.append(el('small', '', item.short_name));
-        const kindCell = el('td', '', item.kind || '—');
         const cityCell = el('td', '', item.city || '—');
         const statusCell = el('td');
         statusCell.append(el('span', `acc-badge${item.is_published === false ? ' off' : ''}`, item.is_published === false ? 'ซ่อน' : 'แสดง'));
@@ -366,7 +378,7 @@
           } catch (error) { toast(error.message); }
         });
         actions.append(edit, remove);
-        tr.append(nameCell, kindCell, cityCell, statusCell, actions);
+        tr.append(nameCell, cityCell, statusCell, actions);
         return tr;
       }));
       setStatus('#admin-inst-status', '');
@@ -383,8 +395,7 @@
       fields: [
         { key: 'name', label: 'ชื่อมหาวิทยาลัย', value: item?.name || '', required: true },
         { key: 'short_name', label: 'ชื่อย่อ', value: item?.short_name || '' },
-        { key: 'city', label: 'เมือง', value: item?.city || '' },
-        { key: 'kind', label: 'ประเภท', type: 'select', options: ['รัฐ', 'เอกชน', 'ราชมงคล', 'นานาชาติ', 'อื่น ๆ'], value: item?.kind || '' },
+        { key: 'city', label: 'จังหวัด/เมือง (myTCAS ไม่มีข้อมูลนี้ — เติมเองได้)', value: item?.city || '' },
         { key: 'logo_url', label: 'URL โลโก้', value: item?.logoUrl || '' },
         { key: 'website_url', label: 'URL เว็บไซต์ทางการ', value: item?.website_url || '' },
         { key: 'is_published', label: 'แสดงในหน้าเว็บ', type: 'checkbox', value: item?.is_published !== false },
@@ -612,6 +623,8 @@
     $('#admin-inst-add')?.addEventListener('click', () => openInstitutionForm(null));
     $('#admin-adm-add')?.addEventListener('click', () => openAdmissionForm(null));
     $('#admin-audit-refresh')?.addEventListener('click', loadAudit);
+    $('#admin-tag-create')?.addEventListener('click', createTag);
+    $('#admin-tag-new')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); createTag(); } });
 
     $$('[data-close-admin-edit]').forEach((button) => button.addEventListener('click', closeEdit));
     $('#admin-edit-modal')?.addEventListener('click', (event) => { if (event.target.id === 'admin-edit-modal') closeEdit(); });

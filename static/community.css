@@ -11,6 +11,15 @@
 .poll-compose .field{margin-bottom:12px}
 .poll-compose textarea{width:100%;resize:vertical;margin-bottom:12px}
 .compose-options{margin-bottom:12px}
+.compose-image{margin-bottom:12px}
+.compose-image .helper{display:block;margin:5px 0 0}
+.compose-image-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.compose-image-row input[type="file"]{flex:1;min-width:0;font:11px 'Noto Sans Thai';color:#8b88a7}
+.compose-image-row input[type="file"]::file-selector-button{border:1px solid #e8e6f2;background:#fcfcff;border-radius:9px;padding:7px 12px;margin-right:10px;cursor:pointer;font:500 11px 'Noto Sans Thai';color:#6f62c0}
+.compose-image-row input[type="file"]::file-selector-button:hover{background:#f3f0ff;border-color:#c3b8f0}
+.compose-image-preview{margin-top:10px;position:relative;display:inline-block}
+.compose-image-preview[hidden]{display:none!important}
+.compose-image-preview img{display:block;max-width:220px;max-height:160px;border-radius:12px;border:1px solid #e8e6f2;object-fit:cover;background:#f6f5fc}
 .option-list{display:grid;gap:7px;margin-bottom:8px}
 .option-row{display:flex;gap:7px;align-items:center}
 .option-row input{flex:1;border:1px solid #e8e6f2;background:#fcfcff;border-radius:9px;padding:9px 11px;outline:0;color:#565274;font:11px 'Noto Sans Thai'}
@@ -47,6 +56,8 @@
 .thread-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
 .thread-title{font-size:15px;margin:0 0 7px;line-height:1.5;letter-spacing:-.2px}
 .thread-body{font-size:12px;color:#8e8aa6;line-height:1.85;margin:0 0 12px;white-space:pre-wrap;word-break:break-word}
+.thread-image{margin:0 0 12px}
+.thread-image img{display:block;width:100%;max-height:360px;object-fit:cover;border-radius:13px;border:1px solid #eeeefa;background:#f6f5fc}
 .thread-actions{display:flex;gap:8px;align-items:center;border-top:1px solid #f1f0f8;padding-top:11px;margin-top:12px}
 .thread-action{border:1px solid #eceafa;background:#fcfcff;color:#8b88a7;border-radius:20px;padding:6px 13px;font:500 11px 'Noto Sans Thai';cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .thread-action:hover{border-color:#b3a8ec;color:var(--purple-dark)}
@@ -54,14 +65,18 @@
 
 /* ---------- โพล ---------- */
 .poll-box{border:1px solid #f0eef8;background:#fbfaff;border-radius:13px;padding:13px;margin-top:12px;display:grid;gap:8px}
-.poll-option{position:relative;display:flex;align-items:center;gap:10px;border:1px solid #e8e5f6;background:#fff;border-radius:10px;padding:10px 12px;cursor:pointer;overflow:hidden;text-align:left;font:11px 'Noto Sans Thai';color:#5e567c}
-.poll-option:hover{border-color:#a99de6}
+.poll-option{position:relative;display:flex;align-items:center;gap:10px;border:1px solid #e8e5f6;background:#fff;border-radius:10px;padding:10px 12px;cursor:pointer;overflow:hidden;text-align:left;font:11px 'Noto Sans Thai';color:#5e567c;transition:border-color .15s}
+.poll-option:hover:not(:disabled){border-color:#a99de6}
+.poll-option:disabled{cursor:progress;opacity:.75}
 .poll-option.picked{border-color:var(--purple);background:#f8f6ff}
+.poll-option.leading{border-color:#c9e8da}
+.poll-option.leading .poll-bar{background:linear-gradient(90deg,#e6f7f0,#d5f0e4)}
 .poll-bar{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#f0edff,#e6e0ff);z-index:0;transition:width .3s}
 .poll-option.picked .poll-bar{background:linear-gradient(90deg,#ded6ff,#cfc4ff)}
 .poll-label,.poll-count{position:relative;z-index:1}
 .poll-label{flex:1}
 .poll-count{color:#8b88a7;font-size:10px;white-space:nowrap}
+.poll-crown{position:relative;z-index:1;font-size:10px;white-space:nowrap}
 .poll-total{color:#aaa7bb;font-size:10px;text-align:center;padding-top:2px}
 
 /* ---------- ความคิดเห็น ---------- */

@@ -1,4 +1,9 @@
-"""ระบบกระทู้ชุมชน: สร้างกระทู้ขอความคิดเห็น เลือก tag แบบ Discord ความคิดเห็น กดไลก์ และโหวต.
+"""ระบบกระทู้ชุมชน: สร้างกระทู้ขอความคิดเห็น (พร้อมแนบรูป) เลือก tag จากรายการที่มีอยู่ ความคิดเห็น กดไลก์ และโหวต.
+
+กฎสำคัญของระบบ:
+- tag: ผู้ใช้เลือกได้เฉพาะ tag ที่มีอยู่แล้ว (ผู้ดูแลระบบเป็นคนเพิ่ม tag เอง) — ไม่มีการสร้าง tag จากผู้ใช้
+- ไลก์: 1 คนกดไลก์กระทู้เดียวได้ 1 ครั้ง (บังคับด้วย unique index ในฐานข้อมูล)
+- โหวต: 1 คนโหวตกระทู้เดียวได้ 1 เสียง โหวตทับได้ (upsert ไม่ลบแล้วใหม่)
 
 ทุก endpoint ต้องใช้ Bearer token (ผ่าน require_user) — ผู้ใช้เขียนได้เฉพาะกระทู้/ความคิดเห็นของตัวเอง
 """
@@ -9,10 +14,11 @@ import re
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 from .auth import database_error, require_database, require_user
 from .avatars import avatar_urls
+from .uploads import MAX_BYTES as MAX_IMAGE_BYTES, upload_image
 
 MAX_TITLE = 200
 MAX_BODY = 5000
@@ -23,17 +29,6 @@ MAX_COMMENT = 2000
 # cache tag (เปลี่ยนบ่อยมาก) — ลดจำนวน request ไป Supabase
 _tag_cache: dict[str, Any] = {"items": None, "at": 0.0}
 
-# cache ผลรวมโหวต/ไลก์/คอมเมนต์ ต่อกระทู้ (โหวตกับไลก์เปลี่ยนบ่อยแต่ไม่ถี่เท่าโพสต์ใหม่)
-_count_cache: dict[str, tuple[float, dict[str, Any]]] = {}
-COUNT_CACHE_TTL = 10.0  # วินาที
-
-
-def invalidate_counts(post_id: Any) -> None:
-    """ล้าง cache ของกระทู้ เมื่อมีการโหวต/ไลก์/คอมเมนต์"""
-    key = str(post_id)
-    for cached_key in list(_count_cache):
-        if key in cached_key:
-            _count_cache.pop(cached_key, None)
 DEFAULT_TAGS = [
     ("TCAS", "purple"),
     ("คณะในฝัน", "blue"),
@@ -49,6 +44,17 @@ DEFAULT_TAGS = [
 
 def _clean(value: Any) -> str:
     return str(value or "").strip()
+
+
+def invalidate_tag_cache() -> None:
+    """ล้าง cache รายการ tag — เรียกเมื่อมีการเพิ่ม/ลบ/เปลี่ยน tag"""
+    _tag_cache["items"] = None
+    _tag_cache["at"] = 0.0
+
+
+# cache สถานะ view สรุปยอด (migration 014) — ตรวจครั้งเดียวแล้วจำไว้ 5 นาที
+_view_cache: dict[str, Any] = {"ready": None, "at": 0.0}
+VIEW_CACHE_TTL = 300.0
 
 
 def build_router(repo: Any) -> APIRouter:
@@ -94,39 +100,82 @@ def build_router(repo: Any) -> APIRouter:
             if url:
                 comment["author_avatar"] = url
 
-    async def ensure_tags(names: list[str], open_id: str) -> list[str]:
-        """คืนชื่อ tag ที่สะอาดแล้ว และสร้าง tag ใหม่ในตารางถ้ายังไม่มี"""
+    async def known_tag_names() -> set[str]:
+        """ชื่อ tag ทั้งหมดที่มีอยู่จริงในระบบ — ผู้ใช้เลือกได้เฉพาะในรายการนี้"""
+        rows = await repo.select("community_tags", {"select": "name", "limit": "500"})
+        if not rows:
+            # ตารางยังไม่มีข้อมูล (หรือยังไม่ได้รัน migration) — ใช้รายการเริ่มต้น
+            return {name for name, _ in DEFAULT_TAGS}
+        return {row.get("name") for row in rows if row.get("name")}
+
+    def clean_tags(raw_tags: Any) -> list[str]:
+        """ทำความสะอาดรายการ tag ที่ผู้ใช้ส่งมา (ตัดซ้ำ ตัด # นำหน้า จำกัดจำนวน)"""
+        if isinstance(raw_tags, str):
+            raw_tags = [part for part in raw_tags.replace(",", " ").split() if part]
         cleaned: list[str] = []
-        for name in names:
-            tag = _clean(name).lstrip("#").strip()
+        for item in raw_tags or []:
+            tag = _clean(item).lstrip("#").strip()
             if not tag or tag in cleaned:
                 continue
             if len(tag) > 40:
                 raise HTTPException(status_code=400, detail=f"ชื่อ tag '{tag}' ยาวเกินไป")
             cleaned.append(tag)
-        if not cleaned:
-            return []
-        # ชื่อ tag อาจมีอักขระที่ PostgREST ใช้เป็นตัวคั่น filter (,) และอื่น ๆ — ตัดทิ้งเพื่อไม่ให้ query พัง
-        safe = [re.sub(r"[,(){}%*\\]", " ", tag).strip() for tag in cleaned]
-        safe = [tag for tag in safe if tag]
-        known: set[str] = set()
-        if safe:
-            existing = await repo.select("community_tags", {"select": "name", "name": f"in.({','.join(safe)})", "limit": "100"})
-            known = {row.get("name") for row in (existing or [])}
-        for tag in cleaned:
-            if tag in known:
-                continue
-            await repo.insert("community_tags", {"name": tag, "color": "purple", "created_by": open_id})
         return cleaned[:MAX_TAGS]
 
     async def attach_details(posts: list[dict[str, Any]], open_id: str) -> list[dict[str, Any]]:
-        """เติมตัวเลือกโพล ผลโหวต จำนวนความคิดเห็น และสถานะไลก์/โหวตของผู้ใช้"""
+        """เติมตัวเลือกโพล ผลโหวต จำนวนความคิดเห็น และสถานะไลก์/โหวตของผู้ใช้
+
+        ใช้ view สรุปยอด (community_option_tally / community_post_stats) ถ้ามี —
+        ได้ยอดแบบ exact ไม่โดนตัดที่ limit และไม่ต้องดึงทุกแถวมานับใน Python
+        ถ้ายังไม่ได้รัน migration 014 จะ fallback ไปนับจากแถวดิบเหมือนเดิม
+        """
         if not posts:
             return posts
         post_ids = [str(post["id"]) for post in posts]
         id_list = ",".join(post_ids)
 
-        # ยิง 4 ตารางพร้อมกัน — แต่ละ request ไป Supabase ใช้เวลาหลายร้อย ms
+        my_vote_rows = await repo.select("community_post_votes", {
+            "select": "post_id,option_id", "post_id": f"in.({id_list})",
+            "open_id": f"eq.{open_id}", "limit": "500",
+        })
+        my_votes: dict[str, int] = {}
+        for row in my_vote_rows or []:
+            my_votes[str(row["post_id"])] = int(row["option_id"])
+
+        if await has_summary_views():
+            # --- ทางหลัก: ยอด exact จาก view ---
+            tally_rows, stat_rows = await asyncio.gather(
+                repo.select("community_option_tally", {
+                    "select": "post_id,option_id,label,sort_order,votes",
+                    "post_id": f"in.({id_list})", "order": "post_id,sort_order", "limit": "1000",
+                }),
+                repo.select("community_post_stats", {
+                    "select": "post_id,likes,total_votes,comments_count",
+                    "post_id": f"in.({id_list})", "limit": "500",
+                }),
+            )
+            if tally_rows is not None and stat_rows is not None:
+                options_by_post: dict[str, list[dict[str, Any]]] = {}
+                for row in tally_rows:
+                    options_by_post.setdefault(str(row["post_id"]), []).append({
+                        "id": int(row["option_id"]),
+                        "label": row.get("label") or "",
+                        "sort_order": row.get("sort_order") or 0,
+                        "votes": int(row.get("votes") or 0),
+                    })
+                stats = {str(row["post_id"]): row for row in stat_rows}
+                for post in posts:
+                    key = str(post["id"])
+                    stat = stats.get(key, {})
+                    post["options"] = options_by_post.get(key, [])
+                    post["total_votes"] = int(stat.get("total_votes") or 0)
+                    post["likes"] = int(stat.get("likes") or 0)
+                    post["comments_count"] = int(stat.get("comments_count") or 0)
+                    post["my_vote"] = my_votes.get(key)
+                    post["liked"] = False
+                return await _fill_liked(posts, open_id)
+
+        # --- ทางสำรอง: ยังไม่ได้รัน migration 014 — นับจากแถวดิบ ---
         options, votes, likes, comments = await asyncio.gather(
             repo.select("community_post_options", {
                 "select": "id,post_id,label,sort_order", "post_id": f"in.({id_list})",
@@ -143,14 +192,11 @@ def build_router(repo: Any) -> APIRouter:
 
         vote_counts: dict[str, int] = {}
         option_vote_counts: dict[int, int] = {}
-        my_votes: dict[str, int] = {}
         for vote in votes or []:
             key = str(vote["post_id"])
             vote_counts[key] = vote_counts.get(key, 0) + 1
             option_id = int(vote["option_id"])
             option_vote_counts[option_id] = option_vote_counts.get(option_id, 0) + 1
-            if vote.get("open_id") == open_id:
-                my_votes[key] = option_id
 
         like_counts: dict[str, int] = {}
         my_likes: set[str] = set()
@@ -168,18 +214,40 @@ def build_router(repo: Any) -> APIRouter:
         for post in posts:
             key = str(post["id"])
             post_options = options_by_post.get(key, [])
-            total = vote_counts.get(key, 0)
             for option in post_options:
                 option["votes"] = option_vote_counts.get(int(option["id"]), 0)
             post["options"] = post_options
-            post["total_votes"] = total
+            post["total_votes"] = vote_counts.get(key, 0)
             post["likes"] = like_counts.get(key, 0)
             post["liked"] = key in my_likes
             post["comments_count"] = comment_counts.get(key, 0)
             post["my_vote"] = my_votes.get(key)
         return posts
 
-    # ---------- tag ----------
+    async def has_summary_views() -> bool:
+        """มี view สรุปยอด (migration 014) แล้วหรือยัง — ตรวจครั้งเดียวแล้วจำไว้"""
+        if _view_cache.get("ready") is not None and (time.monotonic() - _view_cache["at"]) < VIEW_CACHE_TTL:
+            return bool(_view_cache["ready"])
+        rows = await repo.select("community_post_stats", {"select": "post_id", "limit": "1"}, quiet=True)
+        ready = rows is not None
+        _view_cache["ready"] = ready
+        _view_cache["at"] = time.monotonic()
+        return ready
+
+    async def _fill_liked(posts: list[dict[str, Any]], open_id: str) -> list[dict[str, Any]]:
+        """เติมสถานะ 'ผู้ใช้กดไลก์แล้วหรือยัง' (ต้องเช็คแยก เพราะ view นับรวมได้แต่ไม่แยกคน)"""
+        if not open_id:
+            return posts
+        rows = await repo.select("community_post_likes", {
+            "select": "post_id", "post_id": f"in.({','.join(str(p['id']) for p in posts)})",
+            "open_id": f"eq.{open_id}", "limit": "500",
+        })
+        liked = {str(row["post_id"]) for row in rows or []}
+        for post in posts:
+            post["liked"] = str(post["id"]) in liked
+        return posts
+
+    # ---------- tag (อ่านอย่างเดียว — ผู้ดูแลระบบเป็นคนเพิ่ม tag) ----------
     @router.get("/tags")
     async def list_tags() -> dict[str, Any]:
         # tag เปลี่ยนบ่อยมาก — cache 60 วินาที ลดจำนวน request ลง Supabase
@@ -198,22 +266,16 @@ def build_router(repo: Any) -> APIRouter:
         _tag_cache["at"] = time.monotonic()
         return {"items": items, "source": "database" if rows is not None else "default"}
 
-    @router.post("/tags")
-    async def create_tag(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
+    # ---------- อัปโหลดรูปประกอบกระทู้ ----------
+    @router.post("/uploads", status_code=201)
+    async def upload(request: Request, file: UploadFile = File(...)) -> dict[str, Any]:
+        """อัปโหลดรูปภาพประกอบกระทู้ — คืน URL สาธารณะไปใส่ในกระทู้"""
         user = await current_user(request)
-        name = _clean(payload.get("name")).lstrip("#").strip()
-        if not name:
-            raise HTTPException(status_code=400, detail="กรุณากรอกชื่อ tag")
-        if len(name) > 40:
-            raise HTTPException(status_code=400, detail="ชื่อ tag ยาวเกินไป")
-        existing = await repo.select("community_tags", {"select": "id,name", "name": f"eq.{name}", "limit": "1"})
-        if existing:
-            return {"ok": True, "tag": {"name": name, "color": existing[0].get("color") or "purple"}, "already": True}
-        saved = await repo.insert_returning("community_tags", {"name": name, "color": "purple", "created_by": user["id"]})
-        if saved is None:
-            raise database_error(repo, "สร้าง tag ไม่สำเร็จ")
-        _tag_cache["items"] = None  # ล้าง cache เพราะมี tag ใหม่
-        return {"ok": True, "tag": {"name": name, "color": "purple"}, "already": False}
+        # อ่านทีละน้อยกว่าขนาดสูงสุด +1 ไบต์ เพื่อรู้ว่าเกินขนาดหรือไม่โดยไม่ดึงทั้งไฟล์
+        data = await file.read(MAX_IMAGE_BYTES + 1)
+        # ตรวจไฟล์ก่อน — ถ้าไฟล์ผิดรูปแบบต้องแจ้งผู้ใช้ ไม่ใช่บอกให้รัน migration
+        url = await upload_image(repo, data, user["id"])
+        return {"ok": True, "url": url}
 
     # ---------- กระทู้ ----------
     @router.get("/posts")
@@ -231,7 +293,7 @@ def build_router(repo: Any) -> APIRouter:
             return {"items": [], "configured": False}
 
         params: dict[str, str] = {
-            "select": "id,open_id,author_name,author_avatar,title,body,tags,created_at,updated_at",
+            "select": "id,open_id,author_name,author_avatar,title,body,tags,image_url,created_at,updated_at",
             "order": "id.desc",
             "limit": str(max(1, min(limit, 100))),
         }
@@ -292,10 +354,14 @@ def build_router(repo: Any) -> APIRouter:
         if len(body) > MAX_BODY:
             raise HTTPException(status_code=400, detail=f"เนื้อหายาวเกิน {MAX_BODY} ตัวอักษร")
 
-        raw_tags = payload.get("tags") or []
-        if isinstance(raw_tags, str):
-            raw_tags = [part for part in raw_tags.replace(",", " ").split() if part]
-        tags = await ensure_tags([_clean(tag) for tag in raw_tags][:MAX_TAGS], user["id"])
+        # tag — ผู้ใช้เลือกได้เฉพาะ tag ที่มีอยู่แล้ว (ผู้ดูแลระบบเป็นคนเพิ่ม tag เอง)
+        tags = clean_tags(payload.get("tags"))
+        if tags:
+            allowed = await known_tag_names()
+            dropped = [tag for tag in tags if tag not in allowed]
+            tags = [tag for tag in tags if tag in allowed]
+            if dropped:
+                print(f"drop unknown tags for {user['id']}: {dropped}")
 
         raw_options = payload.get("options") or []
         options = []
@@ -306,9 +372,15 @@ def build_router(repo: Any) -> APIRouter:
         if len(options) > MAX_OPTIONS:
             raise HTTPException(status_code=400, detail=f"ตัวเลือกได้ไม่เกิน {MAX_OPTIONS} รายการ")
 
+        # รูปภาพประกอบ (ถ้ามี) — ต้องมีคอลัมน์ image_url ในฐานข้อมูลก่อน
+        image_url = _clean(payload.get("image_url"))
+        if image_url and not image_url.startswith("http"):
+            raise HTTPException(status_code=400, detail="รูปภาพไม่ถูกต้อง")
+        has_image_column = await repo.column_exists("community_posts", "image_url")
+
         fallback = display_name(user)
         name, avatar = await profile_of(user["id"], fallback)
-        record = {
+        record: dict[str, Any] = {
             "open_id": user["id"],
             "author_name": name,
             "author_avatar": avatar,
@@ -316,6 +388,11 @@ def build_router(repo: Any) -> APIRouter:
             "body": body,
             "tags": tags,
         }
+        if image_url and has_image_column:
+            record["image_url"] = image_url
+        elif image_url:
+            raise HTTPException(status_code=503, detail="ยังไม่ได้รัน supabase/migrations/014_community_images_and_votes.sql")
+
         saved = await repo.insert_returning("community_posts", record)
         if saved is None:
             raise database_error(repo, "บันทึกกระทู้ไม่สำเร็จ")
@@ -326,28 +403,80 @@ def build_router(repo: Any) -> APIRouter:
 
     @router.post("/posts/{post_id}/like")
     async def toggle_like(request: Request, post_id: int) -> dict[str, Any]:
+        """กดไลก์/ยกเลิกไลก์ — 1 คนได้ไลก์กระทู้เดียว 1 ครั้ง (unique index กันซ้ำ)"""
         user = await current_user(request)
-        existing = await repo.select("community_post_likes", {"select": "post_id", "post_id": f"eq.{post_id}", "open_id": f"eq.{user['id']}", "limit": "1"})
+        existing = await repo.select("community_post_likes", {
+            "select": "post_id", "post_id": f"eq.{post_id}", "open_id": f"eq.{user['id']}", "limit": "1",
+        })
         if existing:
             await repo.delete("community_post_likes", {"post_id": f"eq.{post_id}", "open_id": f"eq.{user['id']}"})
-            return {"ok": True, "liked": False}
-        await repo.insert("community_post_likes", {"post_id": post_id, "open_id": user["id"]})
-        return {"ok": True, "liked": True}
+            liked = False
+        else:
+            # upsert กัน race condition (กดรัว ๆ / สองแท็บพร้อมกัน) ไม่ให้ได้ error 409
+            saved = await repo.upsert(
+                "community_post_likes", {"post_id": post_id, "open_id": user["id"]}, "post_id,open_id",
+            )
+            if saved is None:
+                raise database_error(repo, "กดไลก์ไม่สำเร็จ")
+            liked = True
+
+        posts = await repo.select("community_posts", {"select": "id", "id": f"eq.{post_id}", "limit": "1"})
+        count = 0
+        if posts:
+            await attach_details(posts, user["id"])
+            count = int(posts[0].get("likes") or 0)
+        return {"ok": True, "liked": liked, "likes": count}
 
     @router.post("/posts/{post_id}/vote")
     async def vote(request: Request, post_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-        """โหวตหนึ่งครั้งต่อคน — โหวตใหม่จะทับของเดิม"""
+        """โหวตหนึ่งเสียงต่อคน
+
+        - โหวตตัวเลือกที่เลือกไว้แล้ว = ยกเลิกโหวต
+        - โหวตตัวเลือกอื่น = เปลี่ยนคำตอบ (upsert ทับของเดิม ไม่ลบแล้วใหม่ ข้อมูลไม่หายกลางคัน)
+        """
         user = await current_user(request)
         try:
             option_id = int(payload.get("option_id"))
         except (TypeError, ValueError):
             raise HTTPException(status_code=400, detail="ตัวเลือกไม่ถูกต้อง") from None
-        options = await repo.select("community_post_options", {"select": "id", "id": f"eq.{option_id}", "post_id": f"eq.{post_id}", "limit": "1"})
+        options = await repo.select("community_post_options", {
+            "select": "id", "id": f"eq.{option_id}", "post_id": f"eq.{post_id}", "limit": "1",
+        })
         if not options:
             raise HTTPException(status_code=404, detail="ไม่พบตัวเลือกนี้")
-        await repo.delete("community_post_votes", {"post_id": f"eq.{post_id}", "open_id": f"eq.{user['id']}"})
-        await repo.insert("community_post_votes", {"post_id": post_id, "option_id": option_id, "open_id": user["id"]})
-        return {"ok": True, "option_id": option_id}
+
+        current = await repo.select("community_post_votes", {
+            "select": "option_id", "post_id": f"eq.{post_id}", "open_id": f"eq.{user['id']}", "limit": "1",
+        })
+        already = bool(current) and int(current[0]["option_id"]) == option_id
+        if already:
+            await repo.delete("community_post_votes", {"post_id": f"eq.{post_id}", "open_id": f"eq.{user['id']}"})
+            my_vote = None
+        else:
+            saved = await repo.upsert(
+                "community_post_votes",
+                {"post_id": post_id, "option_id": option_id, "open_id": user["id"]},
+                "post_id,open_id",
+            )
+            if saved is None:
+                raise database_error(repo, "บันทึกโหวตไม่สำเร็จ")
+            my_vote = option_id
+
+        posts = await repo.select("community_posts", {"select": "id", "id": f"eq.{post_id}", "limit": "1"})
+        if not posts:
+            raise HTTPException(status_code=404, detail="ไม่พบกระทู้นี้")
+        await attach_details(posts, user["id"])
+        post = posts[0]
+        return {
+            "ok": True,
+            "option_id": option_id,
+            "my_vote": my_vote,
+            "total_votes": int(post.get("total_votes") or 0),
+            "options": [
+                {"id": option.get("id"), "label": option.get("label"), "votes": int(option.get("votes") or 0)}
+                for option in post.get("options") or []
+            ],
+        }
 
     @router.post("/posts/{post_id}/comments", status_code=201)
     async def add_comment(request: Request, post_id: int, payload: dict[str, Any]) -> dict[str, Any]:

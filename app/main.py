@@ -207,54 +207,219 @@ async def presence(payload: dict[str, Any]) -> dict[str, Any]:
 
 @app.get("/api/institutes", response_class=JSONResponse)
 async def institutes(q: str = "", limit: int = 100) -> dict[str, Any]:
-    """รายชื่อมหาวิทยาลัยจากตาราง institutions (หลังบ้านแอดมินจัดการได้)"""
+    """รายชื่อมหาวิทยาลัย/สถาบัน — ข้อมูลหลักมาจาก myTCAS (ต้นทางจริง)
+
+    ตาราง institutions เก็บข้อมูลเสริมที่แอดมินแก้ได้ (เช่น จังหวัด/ชื่อย่อ)
+    แต่ชื่อ ชื่ออังกฤษ ประเภท โลโก้ และลิงก์ ดึงจาก myTCAS เสมอ เพื่อให้ตรงต้นทาง
+    """
     if not repo.configured:
         return {"items": [], "configured": False}
-    # ขอเฉพาะคอลัมน์ที่มีจริง (คอลัมน์ใหม่มาจาก migration 008)
+
+    # --- 1) ข้อมูลหลักจาก myTCAS (ต้นทางจริง) ---
+    live_items: list[dict[str, Any]] = []
+    try:
+        from .tcas_sync import live_universities
+        live_items = await live_universities()
+    except Exception:  # noqa: BLE001 — ดึง myTCAS ไม่ได้ ค่อยใช้ข้อมูลจากฐานข้อมูลแทน
+        live_items = []
+
+    # --- 2) ข้อมูลเสริมจากฐานข้อมูล (ที่แอดมินแก้ได้) ---
     optional = ["logoUrl", "short_name", "city", "kind", "tc_uid", "website_url"]
     columns = ["id", "name"] + [name for name in optional if await repo.column_exists("institutions", name)]
     params: dict[str, str] = {
         "select": ",".join(columns),
-        "order": "name", "limit": str(max(1, min(limit, 200))),
+        "order": "name", "limit": "500",
     }
     if await repo.column_exists("institutions", "is_published"):
         params["is_published"] = "eq.true"
+    rows = await repo.select("institutions", params)
+    db_rows = rows or []
+    db_by_name = {row.get("name") or "": row for row in db_rows}
+    db_by_uid = {str(row["tc_uid"]): row for row in db_rows if row.get("tc_uid")}
+
+    def merge(live: dict[str, Any], row: dict[str, Any] | None) -> dict[str, Any]:
+        row = row or {}
+        # ค่าจากฐานข้อมูลใช้เมื่อแอดมินเติมเอง (เช่น city) — ถ้าว่างใช้ของ myTCAS
+        # ไม่ส่ง "kind" (รัฐ/เอกชน/ราชมงคล) ออกไป — หน้าเว็บไม่แสดงประเภทสถาบัน
+        return {
+            "id": row.get("id"),
+            "tc_uid": live.get("tc_uid"),
+            "name": live.get("name") or row.get("name"),
+            "name_en": live.get("name_en"),
+            "short_name": row.get("short_name") or live.get("short_name"),
+            "city": row.get("city") or live.get("city"),
+            "logo_url": live.get("logoUrl"),
+            "website_url": live.get("website_url"),
+            "documents": live.get("documents") or [],
+            "is_published": row.get("is_published", True),
+        }
+
+    if live_items:
+        items = [
+            merge(live, db_by_uid.get(str(live.get("tc_uid") or "")) or db_by_name.get(live.get("name") or ""))
+            for live in live_items
+        ]
+    else:
+        # ดึง myTCAS ไม่ได้ — ใช้ข้อมูลจากฐานข้อมูลเป็นทางสำรอง
+        items = []
+        for row in db_rows:
+            logo = row.get("logoUrl")
+            if not logo and row.get("tc_uid"):
+                logo = f"https://assets.mytcas.com/i/logo/{row['tc_uid']}.png"
+            items.append({
+                "id": row.get("id"),
+                "tc_uid": row.get("tc_uid"),
+                "name": row.get("name"),
+                "name_en": row.get("name_en"),
+                "short_name": row.get("short_name"),
+                "city": row.get("city"),
+                "logo_url": logo,
+                "website_url": row.get("website_url"),
+                "documents": [],
+                "is_published": row.get("is_published", True),
+            })
+
+    items = [item for item in items if item.get("name")]
+
     needle = q.strip()
     if needle:
-        safe = re.sub(r"[,(){}%*\\]", " ", needle).strip()
+        safe = re.sub(r"[,(){}%*\\]", " ", needle).strip().lower()
         if safe:
-            params["name"] = f"ilike.*{safe}*"
-    rows = await repo.select("institutions", params)
-    if rows is None:
-        return {"items": [], "configured": False}
-    # เติมข้อมูลที่ตารางยังไม่มี (ชื่ออังกฤษ/ประเภท/โลโก้) จาก myTCAS
-    tc_index: dict[str, dict[str, Any]] = {}
-    try:
-        from .tcas_sync import university_index
-        tc_index = await university_index()
-    except Exception:  # noqa: BLE001 — ข้อมูล myTCAS ใช้ไม่ได้ก็ยังแสดงข้อมูลจากฐานข้อมูลได้
-        tc_index = {}
-    by_name = {record["name"]: record for record in tc_index.values() if record.get("name")}
+            items = [
+                item for item in items
+                if safe in (
+                    f"{item.get('name') or ''} {item.get('name_en') or ''} "
+                    f"{item.get('short_name') or ''} {item.get('city') or ''}"
+                ).lower()
+            ]
 
-    items = []
-    for row in rows or []:
-        logo = row.get("logoUrl")
-        if not logo and row.get("tc_uid"):
-            logo = f"https://assets.mytcas.com/i/logo/{row['tc_uid']}.png"
-        live = by_name.get(row.get("name") or "")
-        if live and not logo:
-            logo = live.get("logoUrl")
-        items.append({
-            "id": row.get("id"),
-            "name": row.get("name"),
-            "short_name": row.get("short_name"),
-            "city": row.get("city"),
-            "kind": row.get("kind") or (live or {}).get("kind"),
-            "name_en": (live or {}).get("name_en"),
-            "logo_url": logo,
-            "website_url": row.get("website_url") or (live or {}).get("website_url"),
-        })
-    return {"items": items, "configured": True}
+    return {
+        "items": items[:max(1, min(limit, 200))],
+        "configured": True,
+        "source": "mytcas" if live_items else "database",
+    }
+
+
+@app.get("/api/search", response_class=JSONResponse)
+async def global_search(q: str = "", limit: int = 6) -> dict[str, Any]:
+    """ค้นหากลาง — ค้นทั้งมหาวิทยาลัย คณะ/หลักสูตร รอบรับสมัคร และข่าว
+
+    คืน {query, groups: {institutions, faculties, admissions, news}, total}
+    หน้าเว็บเอาไปแสดงเป็นลิสต์ผลลัพธ์แยกตามหมวด
+    """
+    needle = q.strip()
+    if len(needle) < 2:
+        return {"query": needle, "groups": {}, "total": 0}
+    take = max(1, min(limit, 10))
+    safe = re.sub(r"[,(){}%*\\]", " ", needle).strip()
+
+    institutions: list[dict[str, Any]] = []
+    faculties: list[dict[str, Any]] = []
+    admissions: list[dict[str, Any]] = []
+    news_items: list[dict[str, Any]] = []
+
+    # --- มหาวิทยาลัย/สถาบัน (ข้อมูลสดจาก myTCAS) ---
+    try:
+        from .tcas_sync import live_universities
+        for item in await live_universities():
+            haystack = f"{item.get('name') or ''} {item.get('name_en') or ''} {item.get('short_name') or ''}".lower()
+            if needle.lower() in haystack:
+                institutions.append({
+                    "id": item.get("tc_uid"),
+                    "name": item.get("name"),
+                    "name_en": item.get("name_en"),
+                    "logo_url": item.get("logoUrl"),
+                    "kind": item.get("kind"),
+                    "url": "/institutes",
+                })
+            if len(institutions) >= take:
+                break
+    except Exception:  # noqa: BLE001 — ดึง myTCAS ไม่ได้ก็ค้นหาส่วนอื่นต่อ
+        institutions = []
+
+    # --- คณะ/หลักสูตร + รอบรับสมัคร (จากฐานข้อมูล) ---
+    if repo.configured and safe:
+        try:
+            rows = await repo.select("faculties", {
+                "select": "id,institution,name,program,degree,source_url",
+                "or": f"(name.ilike.*{safe}*,program.ilike.*{safe}*,institution.ilike.*{safe}*)",
+                "limit": str(take),
+            })
+            for row in rows or []:
+                faculties.append({
+                    "id": row.get("id"),
+                    "name": row.get("name"),
+                    "institution": row.get("institution"),
+                    "program": row.get("program"),
+                    "url": "/quota",
+                })
+        except Exception:  # noqa: BLE001
+            faculties = []
+
+        try:
+            rows = await repo.select("admissions", {
+                "select": "id,institution,faculty,program,round,source_url,deadline",
+                "or": f"(institution.ilike.*{safe}*,faculty.ilike.*{safe}*,program.ilike.*{safe}*)",
+                "limit": str(take),
+            })
+            for row in rows or []:
+                admissions.append({
+                    "id": row.get("id"),
+                    "name": f"{row.get('faculty') or ''} — {row.get('round') or ''}".strip(" —"),
+                    "institution": row.get("institution"),
+                    "program": row.get("program"),
+                    "url": "/quota",
+                })
+        except Exception:  # noqa: BLE001
+            admissions = []
+
+    # --- เติมคณะ/หลักสูตรจาก myTCAS สด (ตาราง faculties อาจยังไม่ได้ซิงก์) ---
+    if len(faculties) < take:
+        try:
+            from .tcas_sync import live_faculty_search
+            seen = {str(item.get("name") or "") for item in faculties}
+            for item in await live_faculty_search(needle, take=take - len(faculties)):
+                key = str(item.get("name") or "")
+                if key in seen:
+                    continue
+                seen.add(key)
+                faculties.append(item)
+        except Exception:  # noqa: BLE001
+            pass
+
+    # --- ข่าว (ดึงสดจาก myTCAS) ---
+    try:
+        items, _total = await fetch_mytcas_news_with_total(limit=120)
+        for item in items:
+            haystack = f"{item.get('title') or ''} {item.get('summary') or ''} {item.get('content') or ''}".lower()
+            if needle.lower() in haystack:
+                news_items.append({
+                    "id": item.get("id"),
+                    "name": item.get("title"),
+                    "summary": item.get("summary"),
+                    "image_url": item.get("image_url"),
+                    "url": item.get("source_url") or "/news",
+                })
+            if len(news_items) >= take:
+                break
+    except Exception:  # noqa: BLE001
+        news_items = []
+
+    groups: dict[str, list[dict[str, Any]]] = {}
+    if institutions:
+        groups["institutions"] = institutions
+    if faculties:
+        groups["faculties"] = faculties
+    if admissions:
+        groups["admissions"] = admissions
+    if news_items:
+        groups["news"] = news_items
+
+    return {
+        "query": needle,
+        "groups": groups,
+        "total": sum(len(items) for items in groups.values()),
+    }
 
 
 @app.get("/api/admissions", response_class=JSONResponse)

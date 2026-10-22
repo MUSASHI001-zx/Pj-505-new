@@ -35,6 +35,7 @@ REQUIRED_USER_COLUMNS = ("is_admin", "is_disabled")
 # คอลัมน์อื่นที่ต้องมี — ตาราง -> (คอลัมน์, migration)
 REQUIRED_OTHER_COLUMNS: dict[str, tuple[tuple[str, ...], str]] = {
     "community_comments": (("author_avatar",), "010_comment_avatar.sql"),
+    "community_posts": (("image_url",), "014_community_images_and_votes.sql"),
 }
 
 
@@ -84,6 +85,11 @@ def build_router(repo: Any) -> APIRouter:
             for (table, column, migration), exists in zip(other_checks, results):
                 if not exists:
                     missing_columns[f"{table}.{column}"] = migration
+
+        # bucket เก็บรูปประกอบกระทู้ — ถ้ายังไม่มี ระบบแนบรูปใช้ไม่ได้
+        bucket_ready = await repo.storage_bucket_exists("community-uploads")
+        if not bucket_ready:
+            missing_columns["storage.community-uploads"] = "014_community_images_and_votes.sql"
 
         # migration ที่ต้องรัน (เรียงตามลำดับเลขไฟล์)
         migrations = sorted({*missing_tables.values(), *missing_columns.values()})
