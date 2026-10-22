@@ -1,0 +1,168 @@
+/* ===== ระบบกระทู้ชุมชน + Ticket แชทส่วนตัว (/community, /admin) ===== */
+
+/* ---------- แท็บ ---------- */
+.community-tabs{gap:6px}
+.community-pane[hidden]{display:none!important}
+.community-pane{animation:fade-in .2s ease}
+@keyframes fade-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ---------- ฟอร์มสร้างกระทู้ ---------- */
+.community-layout{display:grid;grid-template-columns:1fr;gap:15px}
+.poll-compose .field{margin-bottom:12px}
+.poll-compose textarea{width:100%;resize:vertical;margin-bottom:12px}
+.compose-options{margin-bottom:12px}
+.option-list{display:grid;gap:7px;margin-bottom:8px}
+.option-row{display:flex;gap:7px;align-items:center}
+.option-row input{flex:1;border:1px solid #e8e6f2;background:#fcfcff;border-radius:9px;padding:9px 11px;outline:0;color:#565274;font:11px 'Noto Sans Thai'}
+.option-row input:focus{border-color:#9383de;box-shadow:0 0 0 3px #ece8ff}
+.option-remove{border:1px solid #f0d6dd;background:#fff2f4;color:#c2546a;border-radius:9px;width:32px;height:32px;cursor:pointer;font-size:17px;line-height:1;flex:0 0 auto}
+.option-remove:hover{background:#ffe8ec}
+.tag-new{display:flex;gap:7px;margin-bottom:12px}
+.tag-new input{flex:1;border:1px solid #e8e6f2;background:#fcfcff;border-radius:9px;padding:9px 11px;outline:0;color:#565274;font:11px 'Noto Sans Thai'}
+.tag-new input:focus{border-color:#9383de;box-shadow:0 0 0 3px #ece8ff}
+.compose-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.compose-actions .button{flex:1;min-width:180px}
+.tag-selector{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tag-choice{border:0;font:500 10px 'Noto Sans Thai';cursor:pointer;transition:transform .12s,filter .12s}
+.tag-choice:hover{filter:brightness(.96);transform:translateY(-1px)}
+.tag-choice[aria-pressed="true"]{outline:2px solid #8071dc;outline-offset:2px;font-weight:700}
+.tag-cloud{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:13px;border-top:1px solid #f1f0f8;justify-content:center}
+.tag-cloud .helper{width:100%;text-align:center}
+
+/* ---------- แถบค้นหา/กรองกระทู้ ---------- */
+.thread-toolbar{display:flex;align-items:center;gap:12px;margin:18px 0 4px;flex-wrap:wrap}
+.thread-toolbar .filter-row{margin-bottom:0;flex:1;min-width:0;overflow:auto;flex-wrap:nowrap;padding-bottom:4px}
+.thread-toolbar .filter{white-space:nowrap;flex:0 0 auto}
+.thread-search{display:flex;align-items:center;gap:8px;border:1px solid #e6e5f2;background:#fff;border-radius:20px;padding:7px 14px;color:#aaa8bf;flex:0 0 auto}
+.thread-search input{border:0;outline:0;font:inherit;font-size:11px;color:var(--ink);background:transparent;width:170px}
+
+/* ---------- การ์ดกระทู้ ---------- */
+.thread-list{display:grid;gap:13px;margin-top:14px}
+.thread-card{background:#fff;border:1px solid #eeeefa;border-radius:16px;padding:18px;box-shadow:0 4px 12px rgba(85,72,140,.025)}
+.thread-head{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+.thread-avatar{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,#f2b1cb,#8e7cdf);color:#fff;display:grid;place-items:center;font:700 15px 'Baloo 2';flex:0 0 auto;overflow:hidden}
+.thread-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.thread-meta b{display:block;font-size:12px}
+.thread-meta small{display:block;color:#aaa7bb;font-size:10px;margin-top:2px}
+.thread-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.thread-title{font-size:15px;margin:0 0 7px;line-height:1.5;letter-spacing:-.2px}
+.thread-body{font-size:12px;color:#8e8aa6;line-height:1.85;margin:0 0 12px;white-space:pre-wrap;word-break:break-word}
+.thread-actions{display:flex;gap:8px;align-items:center;border-top:1px solid #f1f0f8;padding-top:11px;margin-top:12px}
+.thread-action{border:1px solid #eceafa;background:#fcfcff;color:#8b88a7;border-radius:20px;padding:6px 13px;font:500 11px 'Noto Sans Thai';cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.thread-action:hover{border-color:#b3a8ec;color:var(--purple-dark)}
+.thread-action.on{background:#fdeef3;border-color:#f6cfdd;color:#d3718f}
+
+/* ---------- โพล ---------- */
+.poll-box{border:1px solid #f0eef8;background:#fbfaff;border-radius:13px;padding:13px;margin-top:12px;display:grid;gap:8px}
+.poll-option{position:relative;display:flex;align-items:center;gap:10px;border:1px solid #e8e5f6;background:#fff;border-radius:10px;padding:10px 12px;cursor:pointer;overflow:hidden;text-align:left;font:11px 'Noto Sans Thai';color:#5e567c}
+.poll-option:hover{border-color:#a99de6}
+.poll-option.picked{border-color:var(--purple);background:#f8f6ff}
+.poll-bar{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#f0edff,#e6e0ff);z-index:0;transition:width .3s}
+.poll-option.picked .poll-bar{background:linear-gradient(90deg,#ded6ff,#cfc4ff)}
+.poll-label,.poll-count{position:relative;z-index:1}
+.poll-label{flex:1}
+.poll-count{color:#8b88a7;font-size:10px;white-space:nowrap}
+.poll-total{color:#aaa7bb;font-size:10px;text-align:center;padding-top:2px}
+
+/* ---------- ความคิดเห็น ---------- */
+.thread-comments{margin-top:12px;border-top:1px solid #f1f0f8;padding-top:12px}
+.comment-list{display:grid;gap:9px;margin-bottom:11px}
+.comment-row{display:flex;gap:9px;align-items:flex-start}
+.comment-avatar{width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,#a9d9f0,#7b6ad3);color:#fff;display:grid;place-items:center;font:700 11px 'Baloo 2';flex:0 0 auto;overflow:hidden}
+.comment-avatar img{width:100%;height:100%;border-radius:inherit;object-fit:cover;display:block}
+.comment-body{flex:1;background:#faf9ff;border:1px solid #f1f0f8;border-radius:0 12px 12px 12px;padding:9px 12px}
+.comment-body b{font-size:11px}
+.comment-body small{color:#b0adc0;font-size:9px;margin-left:8px}
+.comment-body p{margin:4px 0 0;font-size:11px;color:#7c7794;line-height:1.75;white-space:pre-wrap;word-break:break-word}
+.comment-form{display:flex;gap:8px}
+.comment-form input{flex:1;border:1px solid #e8e6f2;background:#fcfcff;border-radius:10px;padding:9px 12px;outline:0;font:11px 'Noto Sans Thai';color:var(--ink)}
+.comment-form input:focus{border-color:#9383de;box-shadow:0 0 0 3px #ece8ff}
+
+/* ---------- AI ---------- */
+.advisor-full{text-align:center;max-width:520px;margin:0 auto;padding:34px 30px}
+.advisor-full .advisor-orb{margin:0 auto 12px}
+.advisor-full select{width:100%;margin:4px 0 12px}
+.advisor-full .button{width:100%}
+.advisor-full .tag-cloud{margin-top:22px;padding-top:18px}
+.advisor-full .tag-cloud .helper{text-align:center}
+
+/* ---------- Ticket ---------- */
+.ticket-layout{display:grid;grid-template-columns:300px 1fr;gap:15px;align-items:start}
+.ticket-sidebar{padding:18px}
+.ticket-sidebar .panel-heading{margin-bottom:12px}
+.ticket-sidebar .panel-heading h3{font-size:14px}
+.admin-presence{display:flex;align-items:center;gap:8px;background:#f9f8ff;border:1px solid #f0eef8;border-radius:11px;padding:9px 11px;font-size:11px;color:#8b88a7;margin-bottom:12px}
+.admin-presence i{width:7px;height:7px;border-radius:50%;background:#d8d4ea;flex:0 0 auto}
+.admin-presence.on{background:#e7f8f2;border-color:#cdeee0;color:#3f9d83}
+.admin-presence.on i{background:#4fbf94;box-shadow:0 0 0 3px rgba(79,191,148,.18)}
+.ticket-list{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:520px;overflow:auto}
+.ticket-item{border:1px solid #f0eef8;background:#fcfcff;border-radius:12px;padding:11px 12px;cursor:pointer;transition:border-color .15s,background .15s}
+.ticket-item:hover{border-color:#b3a8ec;background:#f8f6ff}
+.ticket-item.active{border-color:var(--purple);background:#f5f2ff}
+.ticket-item-title{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.ticket-item-title b{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ticket-item-meta{display:flex;gap:9px;margin-top:5px;flex-wrap:wrap}
+.ticket-item-meta small{color:#aaa7bb;font-size:9px}
+.ticket-item-preview{margin:6px 0 0;font-size:10px;color:#9a96b1;line-height:1.6;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* ---------- แชท ---------- */
+.ticket-chat{padding:0;min-height:420px;display:flex;flex-direction:column;overflow:hidden}
+.ticket-chat-empty{text-align:center;padding:52px 24px;color:#9d99af}
+.ticket-chat-empty h3{font-size:15px;margin-bottom:6px;color:var(--ink)}
+.ticket-chat-empty p{font-size:11px;line-height:1.8}
+.ticket-chat-empty .ticket-icon{margin:0 auto 12px}
+.ticket-chat-body{display:flex;flex-direction:column;flex:1;min-height:0}
+.ticket-chat-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid #f1f0f8;flex-wrap:wrap}
+.ticket-chat-head b{display:block;font-size:13px}
+.ticket-chat-head small{display:block;color:#aaa7bb;font-size:10px;margin-top:2px}
+.ticket-chat-actions{display:flex;align-items:center;gap:8px}
+.chat-messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:11px;max-height:400px;min-height:240px;background:#fbfaff}
+.chat-msg{display:flex}
+.chat-msg.user{justify-content:flex-end}
+.chat-msg.system{justify-content:center}
+.chat-bubble{max-width:78%;border-radius:14px;padding:10px 13px;background:#fff;border:1px solid #eeeefa}
+.chat-msg.user .chat-bubble{background:linear-gradient(100deg,#8c78df,#7166d0);border-color:transparent;color:#fff}
+.chat-msg.admin .chat-bubble{background:#f2f0ff;border-color:#e2ddfb}
+.chat-msg.system .chat-bubble{background:#fff8e8;border-color:#f5e5c0;max-width:92%;text-align:center}
+.chat-msg-head{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+.chat-msg-head b{font-size:10px;color:#6f6a88}
+.chat-msg.user .chat-msg-head b{color:rgba(255,255,255,.85)}
+.chat-msg-head small{font-size:9px;color:#b0adc0}
+.chat-msg.user .chat-msg-head small{color:rgba(255,255,255,.7)}
+.chat-bubble p{margin:0;font-size:11.5px;line-height:1.8;white-space:pre-wrap;word-break:break-word}
+.chat-compose{display:flex;gap:9px;padding:13px 18px;border-top:1px solid #f1f0f8;background:#fff}
+.chat-compose input{flex:1;border:1px solid #e8e6f2;background:#fcfcff;border-radius:11px;padding:11px 13px;outline:0;font:12px 'Noto Sans Thai';color:var(--ink)}
+.chat-compose input:focus{border-color:#9383de;box-shadow:0 0 0 3px #ece8ff}
+
+/* ---------- หน้าแอดมิน ---------- */
+.admin-status.on{color:#3f9d83}
+.admin-status.on i{background:#4fbf94;box-shadow:0 0 0 3px rgba(79,191,148,.18)}
+.admin-tickets{margin-top:15px}
+.admin-tickets .panel-heading{flex-wrap:wrap;gap:10px}
+.admin-tickets .filter-row{margin-bottom:0}
+.admin-ticket-layout{display:grid;grid-template-columns:300px 1fr;gap:15px;align-items:start}
+.ticket-list.admin{max-height:480px}
+.admin-tickets .ticket-chat{border:1px solid #eeeefa;border-radius:16px;background:#fff}
+
+/* ---------- แจ้งเตือนยังไม่ได้รัน migration ---------- */
+.setup-notice{background:#fffdf5;border:1px solid #f9e9b7;border-radius:14px;padding:16px 18px;margin-bottom:18px;color:#796a38}
+.setup-notice b{display:block;font-size:13px;margin-bottom:5px;color:#6a5a28}
+.setup-notice p{margin:0 0 6px;font-size:11.5px;line-height:1.75;color:#a89558}
+.setup-hint{font-size:11px!important;color:#8b7c4a!important}
+.setup-code{display:block;background:#2f2b52;color:#d8d2ff;border-radius:9px;padding:9px 12px;font:11px Consolas,Monaco,monospace;margin:8px 0;overflow-x:auto;white-space:nowrap}
+
+/* ---------- มือถือ ---------- */
+@media(max-width:1050px){
+  .community-layout{grid-template-columns:1fr}
+  .ticket-layout,.admin-ticket-layout{grid-template-columns:1fr}
+  .ticket-list{max-height:300px}
+}
+@media(max-width:760px){
+  .thread-toolbar{flex-direction:column;align-items:stretch}
+  .thread-search input{width:100%}
+  .thread-toolbar .filter-row{flex-wrap:wrap;overflow:visible}
+  .thread-card{padding:15px 13px}
+  .chat-bubble{max-width:88%}
+  .ticket-chat-head{padding:13px}
+  .chat-compose{padding:11px 13px}
+}

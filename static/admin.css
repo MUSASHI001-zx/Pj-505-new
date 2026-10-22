@@ -1,0 +1,107 @@
+/* ===== ระบบหลังบ้านแอดมิน (/admin) ===== */
+
+/* ---------- ประตูสิทธิ์ ---------- */
+.admin-gate{min-height:calc(100vh - 170px);display:grid;place-items:center}
+.admin-gate[hidden]{display:none!important}
+.admin-gate-card{max-width:430px;width:100%;text-align:center;padding:38px 32px}
+.admin-gate-mark{width:56px;height:56px;border-radius:19px;background:linear-gradient(135deg,#a892ef,#657bd0);color:#fff;display:grid;place-items:center;font-size:26px;margin:0 auto 14px;box-shadow:0 9px 18px #d7d0fb}
+.admin-gate-card h2{font-size:19px;margin-bottom:7px}
+.admin-gate-card p{color:var(--muted);font-size:12px;line-height:1.85;margin-bottom:18px}
+.admin-gate-card .button{margin-bottom:14px;width:100%}
+.admin-gate-card .text-link{display:inline-block}
+.admin-page[hidden]{display:none!important}
+
+/* ---------- แท็บ ---------- */
+.admin-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid #eae8f4;padding-bottom:12px;margin-bottom:20px}
+.admin-tabs button{border:0;background:transparent;color:#9793ac;padding:9px 15px;border-radius:20px;font:500 11.5px 'Noto Sans Thai';cursor:pointer;transition:.2s}
+.admin-tabs button:hover{background:#f4f1ff;color:#7164c4}
+.admin-tabs button.active{background:linear-gradient(100deg,#8c78df,#7166d0);color:#fff;box-shadow:0 6px 12px #e2dcfb}
+.admin-pane[hidden]{display:none!important}
+.admin-pane{animation:admin-fade .2s ease}
+@keyframes admin-fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.admin-subtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.admin-subtabs button{border:1px solid #e6e2f6;background:#fff;color:#7a74a0;padding:8px 16px;border-radius:20px;font:500 11.5px 'Noto Sans Thai';cursor:pointer}
+.admin-subtabs button.active{background:var(--lav);border-color:#cfc5f5;color:var(--purple-dark);font-weight:600}
+.admin-subpane[hidden]{display:none!important}
+
+/* ---------- ภาพรวม ---------- */
+.admin-overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px}
+.role-breakdown{display:grid;gap:11px}
+.role-row{display:grid;gap:5px}
+.role-head{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:#6f6a88}
+.role-head b{font-size:14px;color:var(--ink)}
+.role-bar{height:7px;background:#f0eef8;border-radius:8px;overflow:hidden}
+.role-bar i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,#a892ef,#7166d0);transition:width .35s}
+.role-row:nth-child(2n) .role-bar i{background:linear-gradient(90deg,#8fd6e6,#5a9fc4)}
+.role-row:nth-child(3n) .role-bar i{background:linear-gradient(90deg,#f2b1cb,#c27cd1)}
+
+/* ---------- ตาราง ---------- */
+.admin-table-wrap{overflow-x:auto;margin:0 -4px}
+.admin-table{width:100%;border-collapse:collapse;min-width:640px}
+.admin-table th{text-align:left;font-size:10px;color:#a5a1ba;font-weight:600;text-transform:uppercase;letter-spacing:.6px;padding:0 12px 9px;border-bottom:1px solid #f0eef8;white-space:nowrap}
+.admin-table td{padding:11px 12px;border-bottom:1px solid #f5f3fb;vertical-align:middle;font-size:12px;color:#5e567c}
+.admin-table tr:last-child td{border-bottom:0}
+.admin-table tbody tr:hover{background:#fbfaff}
+.admin-table td b{display:block;font-size:12.5px;color:var(--ink);font-weight:600}
+.admin-table td small{display:block;color:#a09cb6;font-size:10px;margin-top:2px}
+.admin-table td:last-child{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.admin-table .acc-empty{text-align:center;padding:26px;color:var(--muted)}
+.admin-role-select{border:1px solid #e5e1f6;background:#fcfcff;border-radius:9px;padding:7px 9px;font:11px 'Noto Sans Thai';color:#5e567c;outline:0;cursor:pointer}
+.admin-role-select:focus{border-color:#9383de;box-shadow:0 0 0 3px #ece8ff}
+.acc-mini.on{background:#e7f8f2;color:#3f9d83;border-color:#cdeee0}
+.admin-source-link{display:inline-block;margin-top:3px;font-size:10px;color:var(--purple-dark)}
+.admin-search{display:flex;align-items:center;gap:8px;border:1px solid #e6e5f2;background:#fff;border-radius:20px;padding:7px 14px;color:#aaa8bf;flex:0 0 auto}
+.admin-search input{border:0;outline:0;font:inherit;font-size:11.5px;color:var(--ink);background:transparent;width:180px}
+
+/* ---------- กระทู้ ---------- */
+.admin-post-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.admin-post-item{border:1px solid #f0eef8;background:#fcfcff;border-radius:13px;padding:13px 15px}
+.admin-post-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.admin-post-head b{display:block;font-size:13px;color:var(--ink)}
+.admin-post-head small{display:block;color:#a09cb6;font-size:10px;margin-top:3px}
+.admin-post-actions{display:flex;gap:6px;flex:0 0 auto}
+.admin-post-body{margin:8px 0 0;font-size:11.5px;color:#8b87a3;line-height:1.8;white-space:pre-wrap;word-break:break-word}
+
+/* ---------- จัดการ tag ---------- */
+.tag-manager{display:flex;flex-wrap:wrap;gap:9px}
+.tag-manage-row{display:flex;align-items:center;gap:8px;border:1px solid #f0eef8;background:#fcfcff;border-radius:20px;padding:6px 8px 6px 12px}
+.tag-manage-row small{color:#a09cb6;font-size:10px;white-space:nowrap}
+.admin-color-select{border:1px solid #e5e1f6;background:#fff;border-radius:8px;padding:4px 6px;font:10px 'Noto Sans Thai';color:#5e567c;outline:0;cursor:pointer}
+
+/* ---------- บันทึกการทำงาน ---------- */
+.audit-list{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.audit-row{border-left:3px solid #ded8f7;background:#fbfaff;border-radius:0 11px 11px 0;padding:10px 14px}
+.audit-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.audit-head b{font-size:12px;color:var(--ink)}
+.audit-head small{color:#a09cb6;font-size:10px}
+.audit-detail{margin:5px 0 0;font-size:11px;color:#8b87a3;line-height:1.7;word-break:break-word}
+
+/* ---------- กล่องแก้ไข ---------- */
+.admin-edit-card{width:min(520px,100%);text-align:left}
+.admin-edit-card h2{font-size:19px;margin-bottom:4px}
+.admin-edit-card>p{color:var(--muted);font-size:12px;margin-bottom:16px}
+.admin-edit-form{display:grid;gap:12px;max-height:52vh;overflow-y:auto;padding-right:4px}
+.admin-edit-form .field{margin:0}
+.admin-edit-form textarea{width:100%;border:1px solid #e8e6f2;background:#fcfcff;border-radius:9px;padding:10px 11px;outline:0;color:#565274;font:11.5px 'Noto Sans Thai';resize:vertical}
+.admin-edit-form textarea:focus{border-color:#9383de;box-shadow:0 0 0 3px #ece8ff}
+.admin-edit-block{border:1px solid #f0eef8;background:#fbfaff;border-radius:11px;padding:11px 13px}
+.admin-edit-block b{display:block;font-size:11px;color:#8b87a3;margin-bottom:4px}
+.admin-edit-block p{margin:0;font-size:12px;color:#5e567c;line-height:1.75;white-space:pre-wrap;word-break:break-word}
+.admin-edit-block .acc-mini{margin-top:9px}
+.admin-checkbox{display:flex;align-items:center;gap:9px;font-size:12px;color:#5e567c;cursor:pointer}
+.admin-checkbox input{width:16px;height:16px;accent-color:var(--purple);cursor:pointer}
+
+/* ---------- มือถือ ---------- */
+@media(max-width:900px){
+  .admin-overview-grid{grid-template-columns:1fr}
+  .admin-search input{width:130px}
+}
+@media(max-width:760px){
+  .admin-tabs{gap:4px}
+  .admin-tabs button{padding:8px 12px;font-size:11px}
+  .admin-search{width:100%}
+  .admin-search input{width:100%}
+  .admin-panel-heading,.admin-tickets .panel-heading{flex-direction:column;align-items:stretch}
+  .admin-edit-form{max-height:60vh}
+}

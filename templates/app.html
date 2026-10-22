@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title }} · TCAS Buddy</title>
+  <meta name="description" content="TCAS Buddy เพื่อนช่วยวางแผนเส้นทางเข้ามหาวิทยาลัย" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css?v=news-1" />
+  <link rel="stylesheet" href="/static/account.css?v=account-1" />
+  <link rel="stylesheet" href="/static/community.css?v=community-1" />
+  <link rel="stylesheet" href="/static/admin.css?v=admin-1" />
+</head>
+<body data-page="{{ page }}" class="{% if page == 'login' %}auth-page{% endif %}">
+  <div id="app-loading" class="app-loading"><div class="loading-mark">TCAS<span>Buddy</span></div><div class="loading-dots"><i></i><i></i><i></i></div><p>กำลังจัดโต๊ะอ่านหนังสือให้พร้อม...</p></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="brand-mark">✦</div><div><b>TCAS</b><span>Buddy</span></div></div>
+      <div class="sidebar-scroll">
+        <p class="menu-label">เมนูหลัก</p>
+        <nav class="main-nav">
+          {% for key, meta in page_meta.items() if key not in ['admin', 'login', 'account'] %}
+          <a href="/{{ '' if key == 'home' else key }}" class="nav-item {% if page == key %}active{% endif %}"><span class="nav-icon">{% if key == 'home' %}⌂{% elif key == 'news' %}▤{% elif key == 'institutes' %}⌘{% elif key == 'quota' %}⌕{% elif key == 'scholarships' %}◈{% elif key == 'identity' %}♧{% elif key == 'community' %}☷{% elif key == 'tutor' %}▣{% else %}ⓘ{% endif %}</span><span>{{ meta[0] }}</span></a>
+          {% endfor %}
+        </nav>
+      </div>
+    </aside>
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-menu icon-button" id="mobile-menu" aria-label="เปิดเมนู">☰</button>
+        <div class="search-box"><span>⌕</span><input id="global-search" type="search" placeholder="ค้นหามหาวิทยาลัย ข่าว หรือคณะที่สนใจ..." /></div>
+        <div class="top-actions"><button class="icon-button notification-button" id="notification-btn" aria-label="การแจ้งเตือน">♧<em>2</em></button><button class="user-chip" id="login-btn"><span class="avatar small" id="header-avatar">F</span><span class="user-chip-copy"><b id="header-name">Fairy</b><small id="header-email">บัญชีของฉัน</small></span><span>⌄</span></button><div class="account-menu" id="account-menu" hidden><div class="account-menu-head"><span class="avatar" id="menu-avatar">F</span><div><b id="menu-name">Fairy</b><small id="menu-email">ยังไม่ได้เข้าสู่ระบบ</small></div></div><div class="account-menu-section"><span>บทบาทของฉัน</span><div class="role-switcher"><button data-account-role="student">นักเรียน</button><button data-account-role="parents">ผู้ปกครอง</button><button data-account-role="teacher">คุณครู</button></div></div><button class="account-action" id="account-profile">จัดการบัญชี</button><button class="account-action danger" id="logout-btn">ออกจากระบบ</button></div></div>
+      </header>
+      <section class="page-body">
+        <div class="setup-banner" id="setup-banner" {% if supabase_ready %}style="display:none"{% endif %}><span>✦</span><div><b>โหมดพร้อมเชื่อมต่อ</b><p id="setup-banner-copy">ยังไม่ได้ตั้งค่า Supabase จึงแสดงข้อมูลตัวอย่างและยังไม่บันทึกข้อมูลส่วนตัวจริง</p></div><a href="/faq#supabase">ดูวิธีตั้งค่า</a></div>
+        {% if page == 'login' %}
+          <div class="login-page"><div class="login-visual"><span class="eyebrow">เพื่อนช่วยวางแผนอนาคต</span><h1>เส้นทางของเธอ<br><em>เริ่มได้ที่นี่</em></h1><p>รวมเครื่องมือ ข่าว และคนที่พร้อมช่วยให้การเตรียมตัวเข้ามหาวิทยาลัยเป็นเรื่องที่เบาขึ้น</p><div class="login-visual-art"><img src="/static/assets/mascot.webp" onerror="this.style.display='none'" alt="มาสคอต TCAS Buddy" /></div><div class="login-checks"><span>✓ ข้อมูลเป็นส่วนตัว</span><span>✓ ปลอดภัย</span><span>✓ ใช้งานง่าย</span></div></div><div class="login-card panel"><div class="login-logo">✦</div><span class="eyebrow">ยินดีต้อนรับกลับมา</span><h2>เข้าสู่ระบบ</h2><p>เริ่มต้นใช้เครื่องมือของ TCAS Buddy ด้วยบัญชี Google</p><button class="google-button" id="google-login-page"><span>G</span> เข้าสู่ระบบด้วย Google</button><div class="modal-divider"><span>หลังเข้าสู่ระบบ</span></div><div class="role-preview"><span>♙ นักเรียน</span><span>♧ ผู้ปกครอง</span><span>▣ คุณครู</span></div><p class="small-muted">คุณจะเลือกบทบาทและตอบคำถามสั้น ๆ เพื่อปรับประสบการณ์ให้เหมาะกับคุณ</p><div class="login-status" id="login-page-status"></div><a href="/" class="text-link">กลับไปดูตัวอย่างเว็บไซต์ →</a></div></div>
+        {% elif page == 'home' %}
+          <div class="hero greeting-card"><div><span class="eyebrow">วันอังคารที่ 20 ตุลาคม 2569</span><h1>สวัสดี น้องเฟย์รี่ <span class="sparkle">✦</span></h1><p>วันนี้อยากให้ TCAS Buddy ช่วยเรื่องอะไรดี?</p><div class="hero-actions"><a class="button primary" href="/identity">ค้นหาตัวตนของฉัน <span>→</span></a><a class="text-link" href="/tutor">ไปที่ AI Tutor</a></div></div><div class="hero-art"><img src="/static/assets/mascot.webp" onerror="this.style.display='none'" alt="มาสคอตนักเรียน TCAS Buddy" /><div class="floating-note">ค่อย ๆ ไปด้วยกันนะ<br><b>เธอทำได้แน่นอน!</b></div></div></div>
+          <div class="section-heading"><div><span class="eyebrow">ภาพรวมของเรา</span><h2>ข้อมูลที่ช่วยให้วางแผนง่ายขึ้น</h2></div><span class="live-status"><i></i> อัปเดตจากระบบ</span></div>
+          <div class="stat-grid"><div class="stat-card"><div class="stat-icon teal">◉</div><div><span>เข้าชมเว็บทั้งหมด</span><strong data-stat="views">—</strong><small>นับ 1 ครั้งต่อการเข้าเว็บ 1 รอบ</small></div></div><div class="stat-card"><div class="stat-icon purple">●</div><div><span>กำลังออนไลน์</span><strong data-stat="online">—</strong><small>ใช้งานภายใน 2 นาทีล่าสุด</small></div></div><div class="stat-card"><div class="stat-icon pink">♙</div><div><span>ผู้สมัครในระบบ</span><strong data-stat="users">—</strong><small>นับจากบัญชีที่เข้าสู่ระบบแล้ว</small></div></div></div>
+          <div class="content-grid"><div class="panel news-panel"><div class="panel-heading"><div><span class="eyebrow">อัปเดตล่าสุด</span><h3>ข่าวเด่นวันนี้</h3></div><a href="/news">ดูทั้งหมด →</a></div><div class="news-list" id="home-news-list">{% for item in sample_news %}<article class="news-row"><div class="news-thumb {{ item.tone }}"><span>{{ item.tag }}</span><b>TCAS<br>Buddy</b></div><div><span class="tag-pill {{ item.tone }}">{{ item.tag }}</span><h4>{{ item.title }}</h4><p>{{ item.summary }}</p><small>{{ item.time }}</small></div><button class="bookmark">♡</button></article>{% endfor %}</div></div><div class="panel schedule-panel"><div class="panel-heading"><div><span class="eyebrow">อย่าลืมเช็ก</span><h3>กำหนดการสำคัญ</h3></div><button class="icon-button">⋮</button></div><ul class="schedule-list"><li><span class="schedule-icon purple">⌑</span><div><b>ติดตามประกาศ TCAS รอบ 1</b><small>อัปเดตข้อมูลจากประกาศทางการ</small></div><time>เร็ว ๆ นี้</time></li><li><span class="schedule-icon yellow">◷</span><div><b>วางแผนอ่าน A-Level</b><small>แบ่งเป้าหมายเป็นสัปดาห์</small></div><time>แนะนำ</time></li><li><span class="schedule-icon blue">✓</span><div><b>เช็กเกณฑ์คณะที่สนใจ</b><small>ใช้หน้า ค้นหาโควตา</small></div><time>ทำต่อ</time></li></ul></div></div>
+        {% elif page == 'news' %}
+          <div class="page-intro"><div><span class="eyebrow">ติดตามให้ทันทุกจังหวะ</span><h1>ข่าวสาร & อัปเดต</h1><p>ประกาศและข่าวสารจาก myTCAS แบบสด อัปเดตอัตโนมัติ</p></div><span class="source-badge">ที่มา: myTCAS</span></div><p class="news-status" id="news-status" hidden></p><div class="news-page-grid" id="news-grid">{% for item in sample_news %}<article class="news-card" data-news-card data-search="{{ item.title }} {{ item.summary }} {{ item.tag }}" data-category="{{ item.tag }}"><div class="news-cover {{ item.tone }}"><span>{{ item.tag }}</span><div class="cover-orbit">✦</div></div><div class="news-card-body"><div class="card-meta"><span class="tag-pill {{ item.tone }}">{{ item.tag }}</span><button class="bookmark">♡</button></div><h3>{{ item.title }}</h3><p>{{ item.summary }}</p><div class="card-footer"><small>{{ item.time }}</small><span>อ่านต่อ →</span></div></div></article>{% endfor %}</div><div class="scholar-more"><button class="button soft" id="news-more" hidden>ดูข่าวเพิ่มเติม</button></div>
+        {% elif page == 'institutes' %}
+          <div class="page-intro"><div><span class="eyebrow">สำรวจตัวเลือกของเธอ</span><h1>รายชื่อมหาวิทยาลัย และสถาบันต่าง ๆ</h1><p>ค้นหาสถาบันที่ใช่ แล้วเก็บไว้เปรียบเทียบภายหลัง</p></div><div class="inst-search"><span>⌕</span><input id="inst-search" type="search" placeholder="ค้นหามหาวิทยาลัย..." /></div></div><div class="filter-row" id="inst-filter-row"><button class="filter active" data-inst-kind="">ทั้งหมด</button><button class="filter" data-inst-kind="รัฐ">รัฐ</button><button class="filter" data-inst-kind="เอกชน">เอกชน</button><button class="filter" data-inst-kind="ราชมงคล">ราชมงคล</button><button class="filter" data-inst-kind="นานาชาติ">นานาชาติ</button></div><p class="news-status" id="inst-status" hidden></p><div class="institute-grid" id="inst-grid">{% for item in institutes %}<article class="institute-card"><div class="uni-logo {{ item.tone }}">{{ item.short }}</div><div><h3>{{ item.name }}</h3><p>{{ item.city }} · สถาบันอุดมศึกษา</p></div><button class="round-arrow">→</button></article>{% endfor %}</div>
+        {% elif page == 'quota' %}
+          <div class="page-intro"><div><span class="eyebrow">ค้นหาโอกาสที่เหมาะกับเธอ</span><h1>ค้นหาโควตา / TCAS</h1><p>ข้อมูลรอบรับสมัคร โควตา และเกณฑ์คะแนน จาก myTCAS แบบสด</p></div><span class="source-badge">อ้างอิง myTCAS / ประกาศทางการ</span></div>
+          <div class="search-form panel"><div class="field"><label>มหาวิทยาลัย</label><input id="quota-inst" placeholder="เช่น มหาวิทยาลัยเชียงใหม่" /></div><div class="field"><label>คณะ/สาขา</label><input id="quota-faculty" placeholder="เช่น วิศวกรรมศาสตร์" /></div><div class="field"><label>รอบการรับ</label><input id="quota-round" placeholder="เช่น รอบ 1" /></div><button class="button primary" id="quota-search">⌕ ค้นหา</button></div>
+          <p class="news-status" id="quota-status" hidden></p>
+          <div class="result-heading"><h2>ผลลัพธ์</h2><span>ข้อมูลต้องตรวจสอบกับประกาศล่าสุดก่อนสมัครจริง</span></div>
+          <div class="admission-list" id="quota-results"><p class="acc-empty">กำลังโหลดข้อมูลรอบรับสมัครจาก myTCAS…</p></div>
+          <div class="scholar-more"><button class="button soft" id="quota-more" hidden>ดูเพิ่มเติม</button></div>
+        {% elif page == 'scholarships' %}
+          <div class="page-intro"><div><span class="eyebrow">ค้นหาทุนการศึกษาที่ใช่</span><h1>ค้นหาทุน</h1><p>รวมทุนการศึกษาจากกสศ. และ Scholarship.in.th ค้นหาได้ทั้งภาษาไทยและอังกฤษ</p></div><span class="source-badge">แหล่งข้อมูล: กสศ. + Scholarship.in.th</span></div>
+          <div class="scholar-search panel">
+            <div class="scholar-search-bar"><span>⌕</span><input id="scholar-q" type="search" placeholder="ค้นหาทุน เช่น วิศวกรรมศาสตร์, ปริญญาตรี, ทุนเรียนต่อ..." autocomplete="off" /><button class="button primary" id="scholar-search-btn">⌕ ค้นหา</button></div>
+            <div class="scholar-filters">
+              <div class="scholar-select" id="scholar-status-select">
+                <button type="button" class="scholar-select-trigger" id="scholar-status-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="scholar-select-label">สถานะ</span><span class="scholar-select-value" id="scholar-status-value">ทั้งหมด</span><span class="scholar-select-caret">▾</span></button>
+                <div class="scholar-select-menu" id="scholar-status-menu" role="listbox" hidden></div>
+              </div>
+              <div class="scholar-select" id="scholar-level-select">
+                <button type="button" class="scholar-select-trigger" id="scholar-level-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="scholar-select-label">ระดับชั้น</span><span class="scholar-select-value" id="scholar-level-value">ทั้งหมด</span><span class="scholar-select-caret">▾</span></button>
+                <div class="scholar-select-menu" id="scholar-level-menu" role="listbox" hidden></div>
+              </div>
+              <div class="scholar-select" id="scholar-source-select">
+                <button type="button" class="scholar-select-trigger" id="scholar-source-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="scholar-select-label">แหล่งข้อมูล</span><span class="scholar-select-value" id="scholar-source-value">ทั้งหมด</span><span class="scholar-select-caret">▾</span></button>
+                <div class="scholar-select-menu" id="scholar-source-menu" role="listbox" hidden></div>
+              </div>
+              <div class="scholar-select" id="scholar-genre-select">
+                <button type="button" class="scholar-select-trigger" id="scholar-genre-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="scholar-select-label">ประเภททุน</span><span class="scholar-select-value" id="scholar-genre-value">ทั้งหมด</span><span class="scholar-select-caret">▾</span></button>
+                <div class="scholar-select-menu" id="scholar-genre-menu" role="listbox" hidden></div>
+              </div>
+              <button type="button" class="scholar-clear" id="scholar-clear" hidden>ล้างตัวกรอง</button>
+            </div>
+          </div>
+          <div class="result-heading"><h2>ผลลัพธ์</h2><span>ข้อมูลต้องตรวจสอบกับประกาศล่าสุดก่อนสมัครจริง</span></div>
+          <p class="news-status" id="scholar-status" hidden></p>
+          <div class="scholar-list" id="scholar-list"><p class="acc-empty">กำลังโหลดข้อมูลทุนการศึกษา…</p></div>
+          <div class="scholar-more"><button class="button soft" id="scholar-more" hidden>ดูเพิ่มเติม</button></div>
+        {% elif page == 'identity' %}
+          <div class="identity-layout"><div class="identity-copy"><span class="eyebrow">รู้จักตัวเองก่อนเลือกคณะ</span><h1>ค้นหาตัวตน<br><em>ของคุณ</em></h1><p>ตอบคำถามจากสถานการณ์ใกล้ตัว แล้วดูแนวทางที่สะท้อนความสนใจและจุดแข็งของเธอ</p><div class="identity-points"><span>♡ ความสนใจ</span><span>◈ ความถนัด</span><span>♙ บุคลิกภาพ</span></div><a href="#quiz" class="button primary">เริ่มทำแบบทดสอบ <span>→</span></a></div><div class="identity-art"><img src="/static/assets/mascot.webp" onerror="this.style.display='none'" alt="นักเรียนกำลังค้นหาตัวตน" /><div class="sticker">ค่อย ๆ รู้จัก<br><b>ตัวเองกันนะ</b> ✦</div></div></div><div class="quiz-card panel" id="quiz"><div class="quiz-progress"><span>คำถาม 1 จาก 5</span><div><i style="width:20%"></i></div></div><h2>ถ้ามีเวลาว่างหนึ่งวัน เธออยากทำอะไรมากที่สุด?</h2><div class="choice-grid"><button>ลองทำโปรเจกต์หรือสิ่งประดิษฐ์ใหม่</button><button>อ่านหนังสือ ดูหนัง หรือเล่าเรื่องให้คนอื่นฟัง</button><button>ออกไปทำกิจกรรมกับเพื่อน ๆ</button><button>จัดระบบห้องและวางแผนสิ่งที่ต้องทำ</button></div><button class="button soft next-question">เลือกคำตอบเพื่อไปต่อ →</button></div>
+        {% elif page == 'community' %}
+          <div class="page-intro"><div><span class="eyebrow">ไม่ต้องคิดคนเดียว</span><h1>ช่วยเหลือ &amp; สร้างกระทู้</h1><p>ถามเพื่อนในชุมชน เลือก tag แบบ Discord หรือเปิด Ticket คุยกับแอดมินส่วนตัว</p></div></div>
+          <div class="community-tabs" role="tablist"><button class="active" data-community-tab="threads" role="tab">กระทู้ชุมชน</button><button data-community-tab="advisor" role="tab">AI ที่ปรึกษา</button><button data-community-tab="ticket" role="tab">Ticket / ติดต่อแอดมิน</button></div>
+
+          <!-- แท็บ 1: กระทู้ชุมชน -->
+          <div class="community-pane" data-community-pane="threads">
+            <div class="community-layout">
+              <div class="panel poll-compose" id="compose-panel">
+                <div class="panel-heading"><div><h3>ถามความเห็นจากเพื่อน ๆ</h3><span class="helper">เลือก tag ได้เหมือน Discord — ได้สูงสุด 5 tag</span></div></div>
+                <div class="field"><label for="compose-title">หัวข้อคำถาม</label><input id="compose-title" maxlength="200" placeholder="เช่น ควรเลือกคณะอะไรดีระหว่างวิทยาศาสตร์กับวิศวกรรม?" /></div>
+                <textarea id="compose-body" maxlength="5000" placeholder="วันนี้อยากถามอะไรกับชุมชน... (เล่าเพิ่มเติม คิดเห็น หรือข้อมูลที่เพื่อน ๆ ควรรู้)" rows="4"></textarea>
+                <div class="field compose-options"><label>ตัวเลือกสำหรับโหวต (ถ้าอยากทำเป็นโพล)</label><div id="compose-option-list" class="option-list"></div><button type="button" class="acc-mini" id="add-option">+ เพิ่มตัวเลือก</button></div>
+                <div class="tag-selector" id="tag-selector"><span class="helper">กำลังโหลด tag…</span></div>
+                <div class="tag-new"><input id="tag-new-input" maxlength="40" placeholder="สร้าง tag ใหม่ เช่น #ปัญหาการสอบ" /><button type="button" class="acc-mini" id="tag-new-add">+ เพิ่ม tag</button></div>
+                <div class="compose-actions"><button class="button primary full" id="submit-post">โพสต์คำถาม</button><span class="acc-status" id="compose-status" role="status"></span></div>
+              </div>
+            </div>
+            <div class="thread-toolbar"><div class="filter-row" id="tag-filter-row"><button class="filter active" data-tag-filter="">ทั้งหมด</button></div><div class="thread-search"><span>⌕</span><input id="thread-search" type="search" placeholder="ค้นหากระทู้..." /></div></div>
+            <p class="news-status" id="thread-status" hidden></p>
+            <div class="thread-list" id="thread-list"><p class="acc-empty">กำลังโหลดกระทู้…</p></div>
+          </div>
+
+          <!-- แท็บ 2: AI ที่ปรึกษา -->
+          <div class="community-pane" data-community-pane="advisor" hidden>
+            <div class="advisor-chat">
+              <!-- หัวเรื่องแชท -->
+              <div class="chat-head">
+                <div class="chat-head-title">
+                  <span class="advisor-orb small">✦</span>
+                  <div><b>AI ที่ปรึกษา</b><small id="advisor-status">พร้อมคุยเรื่องการเรียนและการเตรียมตัว</small></div>
+                </div>
+                <div class="chat-head-actions">
+                  <button class="acc-mini" id="advisor-clear" type="button">ล้างแชท</button>
+                </div>
+              </div>
+
+              <!-- กล่องข้อความ -->
+              <div class="chat-messages" id="advisor-messages">
+                <div class="chat-welcome">
+                  <div class="advisor-orb">✦</div>
+                  <h3>สวัสดี! ฉันคือ TCAS Buddy</h3>
+                  <p>ถามเรื่องการเตรียมตัว TCAS การเลือกคณะ เกณฑ์รับ ทุนการศึกษา หรืออะไรก็ได้ที่เกี่ยวกับการสมัครมหาวิทยาลัย</p>
+                </div>
+              </div>
+
+              <!-- ช่องพิมพ์ -->
+              <form class="chat-compose" id="advisor-form">
+                <textarea id="advisor-input" rows="1" maxlength="4000" placeholder="พิมพ์คำถามเกี่ยวกับการสมัครมหาวิทยาลัย..." autocomplete="off"></textarea>
+                <button class="button primary" type="submit" id="advisor-send" aria-label="ส่งคำถาม">ส่ง</button>
+              </form>
+              <p class="chat-hint">AI อาจตอบผิดได้ — โปรดตรวจสอบข้อมูลเกณฑ์รับกับประกาศทางการของมหาวิทยาลัยที่ www.mytcas.com</p>
+            </div>
+          </div>
+
+          <!-- แท็บ 3: Ticket / แชทส่วนตัวกับแอดมิน -->
+          <div class="community-pane" data-community-pane="ticket" hidden>
+            <div class="ticket-layout">
+              <div class="panel ticket-sidebar">
+                <div class="panel-heading"><div><h3>Ticket ของฉัน</h3><span class="helper">คุยกับแอดมินแบบส่วนตัว</span></div><button class="button primary" id="new-ticket">+ ใหม่</button></div>
+                <div class="admin-presence" id="admin-presence"><i></i><span>กำลังตรวจสอบสถานะแอดมิน…</span></div>
+                <ul class="ticket-list" id="ticket-list"></ul>
+              </div>
+              <div class="panel ticket-chat" id="ticket-chat">
+                <div class="ticket-chat-empty" id="ticket-chat-empty"><div class="ticket-icon">♧</div><h3>ยังไม่ได้เลือก Ticket</h3><p>เลือก Ticket จากด้านซ้าย หรือกด <b>+ ใหม่</b> เพื่อเริ่มปรึกษาแอดมิน</p><div class="hotline">สายด่วน TCAS <b>02-126-5111</b></div></div>
+                <div class="ticket-chat-body" id="ticket-chat-body" hidden>
+                  <div class="ticket-chat-head"><div><b id="chat-subject"></b><small id="chat-status"></small></div><div class="ticket-chat-actions"><span class="acc-badge" id="chat-status-pill"></span><button class="acc-mini danger" id="close-ticket">ปิดตั๋ว</button></div></div>
+                  <div class="chat-messages" id="chat-messages"></div>
+                  <form class="chat-compose" id="chat-form"><input id="chat-input" maxlength="3000" placeholder="พิมพ์ข้อความถึงแอดมิน..." autocomplete="off" /><button class="button primary" type="submit">ส่ง</button></form>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% elif page == 'tutor' %}
+          <div class="notebook-hero"><div><span class="eyebrow">เรียนแบบมีเพื่อนช่วยคิด</span><h1>Notebook <em>ML</em></h1><p>รวมโน้ต บทเรียน และการฝึกทำข้อสอบไว้ในที่เดียว</p><div class="subject-tabs" id="tutor-subject-tabs"><button class="active" data-tutor-subject="TCAS">TCAS</button><button data-tutor-subject="A-Level">A-Level</button><button data-tutor-subject="TPAT">TPAT</button><button data-tutor-subject="TOEIC">TOEIC</button></div></div><div class="notebook-art"><div class="bot-orb">✦</div><span>สู้ ๆ นะ<br><b>เก่งขึ้นทุกวัน</b></span></div></div>
+          <div class="study-mode-grid">
+            <div class="mode-card purple" data-tutor-mode="learn"><span>▤</span><h3>เรียนรู้แบบรวม</h3><p>ให้ AI สรุปเรื่องที่อยากรู้ พร้อมตัวอย่างและโน้ตจำง่าย</p><button>เปิดสมุดโน้ต →</button></div>
+            <div class="mode-card blue" data-tutor-mode="practice"><span>✎</span><h3>เน้นทำข้อสอบ</h3><p>ฝึกโจทย์ใหม่ตามหมวด พร้อมคำอธิบายทีละขั้น</p><button>เริ่มฝึกทำโจทย์ →</button></div>
+            <div class="mode-card pink" data-tutor-mode="plan"><span>◷</span><h3>วางแผนอ่านหนังสือ</h3><p>จัดเป้าหมายและติดตามความคืบหน้าของตัวเอง</p><button>สร้างแผนใหม่ →</button></div>
+          </div>
+          <div class="panel tutor-note">
+            <div class="panel-heading"><div><span class="eyebrow">สมุดโน้ตของคุณ</span><h3 id="tutor-notebook-title">เริ่มจากเรื่องที่อยากเข้าใจ</h3></div><span class="source-badge" id="tutor-source-count">AI-generated practice</span></div>
+            <div class="tutor-note-list" id="tutor-note-list"><p class="acc-empty">กำลังโหลด…</p></div>
+          </div>
+
+          <!-- คลังชุดข้อมูลเรื่องสอบจากเด็กดี -->
+          <div class="panel library-panel">
+            <div class="panel-heading">
+              <div><span class="eyebrow">คลังชุดข้อมูล</span><h3>เรื่องสอบและข่าว TCAS จากเด็กดี</h3></div>
+              <div class="library-search"><span>⌕</span><input id="library-q" type="search" placeholder="ค้นหาเรื่องสอบ เช่น Portfolio, โควตา, TGAT" autocomplete="off" /></div>
+            </div>
+            <div class="filter-row" id="library-cats"></div>
+            <p class="news-status" id="library-status" hidden></p>
+            <div class="library-grid" id="library-grid"><p class="acc-empty">กำลังโหลดคลังข้อมูล…</p></div>
+            <div class="library-more"><button class="button soft" id="library-more" hidden>ดูเพิ่มเติม</button></div>
+          </div>
+
+          <!-- หน้าต่างแชทกับ AI -->
+          <div class="modal-backdrop" id="tutor-chat-modal" role="dialog" aria-modal="true" aria-labelledby="tutor-chat-title">
+            <div class="modal-card tutor-chat-modal-card">
+              <button class="modal-close" id="tutor-chat-close" aria-label="ปิด">×</button>
+              <h2 id="tutor-chat-title">AI Tutor</h2>
+              <p id="tutor-chat-subtitle">คุยเรื่องเรียนในบริบทของสมุดโน้ตของคุณ</p>
+              <div class="tutor-chat-modal-body">
+                <aside class="tutor-modal-side">
+                  <div class="tutor-side-head"><b>บทเรียนในสมุด</b><button class="acc-mini" id="tutor-new-source" type="button">+ เพิ่ม</button></div>
+                  <div class="tutor-source-list" id="tutor-source-list"><p class="acc-empty">กำลังโหลด…</p></div>
+                </aside>
+                <div class="tutor-modal-chat">
+                  <div class="chat-messages" id="tutor-messages">
+                    <div class="chat-welcome">
+                      <div class="advisor-orb">✦</div>
+                      <h3>สวัสดี! ฉันคือ AI Tutor</h3>
+                      <p>ถามเรื่องเรียนในวิชานี้ได้เลย ฉันจะอ้างอิงบทเรียนที่คุณเก็บไว้ในสมุดโน้ตด้วย</p>
+                      <div class="chat-suggestions" id="tutor-starters"></div>
+                    </div>
+                  </div>
+                  <form class="chat-compose" id="tutor-form">
+                    <textarea id="tutor-input" rows="1" maxlength="4000" placeholder="ถามเรื่องเรียน..." autocomplete="off"></textarea>
+                    <button class="button primary" type="submit" id="tutor-send" aria-label="ส่งคำถาม">ส่ง</button>
+                  </form>
+                </div>
+              </div>
+              <p class="chat-hint">AI อาจตอบผิดได้ — ตรวจสอบกับตำราสอบและประกาศทางการเสมอ</p>
+            </div>
+          </div>
+
+          <!-- กล่องเพิ่มบทเรียน / ให้ AI สรุป -->
+          <div class="modal-backdrop" id="tutor-modal" role="dialog" aria-modal="true" aria-labelledby="tutor-modal-title">
+            <div class="modal-card">
+              <button class="modal-close" id="tutor-modal-close" aria-label="ปิด">×</button>
+              <h2 id="tutor-modal-title">เพิ่มบทเรียน</h2>
+              <p>เขียนเอง หรือวางเนื้อหาแล้วให้ AI สรุปให้</p>
+              <div class="acc-form">
+                <div class="field"><label for="tutor-source-title">หัวข้อ</label><input id="tutor-source-title" maxlength="200" placeholder="เช่น เกณฑ์รอบ 1 ที่ต้องจำ" /></div>
+                <div class="field"><label for="tutor-source-content">เนื้อหา</label><textarea id="tutor-source-content" rows="8" maxlength="20000" placeholder="วางเนื้อหา/สรุปของคุณเอง หรือข้อความจากเอกสาร"></textarea></div>
+                <div class="field"><label for="tutor-source-url">ลิงก์ต้นทาง (ถ้ามี)</label><input id="tutor-source-url" maxlength="500" placeholder="https://www.mytcas.com/..." /></div>
+              </div>
+              <div class="avatar-modal-actions">
+                <button type="button" class="button outline" id="tutor-save-note">บันทึกเอง</button>
+                <button type="button" class="button primary" id="tutor-ai-summarize">ให้ AI สรุปให้</button>
+              </div>
+              <div class="login-status" id="tutor-modal-status" role="status"></div>
+            </div>
+          </div>
+{% elif page == 'faq' %}
+          <div class="page-intro"><div><span class="eyebrow">เริ่มต้นได้ในไม่กี่นาที</span><h1>คู่มือใช้งาน & FAQ</h1><p>คำตอบสั้น ๆ สำหรับการใช้งาน TCAS Buddy</p></div><div class="help-bubble">ยังไม่เจอคำตอบ? <b>คุยกับทีมช่วยเหลือ →</b></div></div><div class="faq-layout"><div class="faq-nav"><button class="active">เริ่มต้นใช้งาน</button><button>บัญชีและบทบาท</button><button>ข่าวและการแจ้งเตือน</button><button>AI Tutor</button><button id="supabase">การตั้งค่าระบบ</button></div><div class="faq-list">{% for question, answer in faqs %}<details {% if loop.first %}open{% endif %}><summary>{{ question }}<span>+</span></summary><p>{{ answer }}</p></details>{% endfor %}<details><summary>ถ้าต้องการเชื่อมต่อ Supabase ต้องทำอย่างไร?<span>+</span></summary><p>ตั้งค่า SUPABASE_URL, SUPABASE_ANON_KEY และ SUPABASE_SERVICE_ROLE_KEY ใน environment ของโปรเจ็กต์ จากนั้นเปิด Google provider และเพิ่ม redirect URL ของเว็บ ระบบจะเปลี่ยนจากโหมดตัวอย่างเป็นการอ่าน/บันทึกข้อมูลจริง</p></details></div></div>
+        {% elif page == 'account' %}
+          <div class="account-page" id="account-page" data-view="menu">
+            <div class="panel account-gate" id="account-gate">
+              <div class="account-gate-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c.6-3.6 3.6-5.6 7.2-5.6s6.6 2 7.2 5.6"/></svg></div>
+              <h2 id="account-gate-title">กำลังตรวจสอบบัญชี…</h2>
+              <p id="account-gate-copy">รอสักครู่ ระบบกำลังโหลดข้อมูลของคุณ</p>
+              <button class="button primary" id="account-gate-login" hidden>เข้าสู่ระบบด้วย Google</button>
+            </div>
+            <div class="account-layout" id="account-layout" hidden>
+              <aside class="account-side panel">
+                <div class="acc-hero">
+                  <button type="button" class="acc-avatar" id="acc-avatar-btn" aria-label="เปลี่ยนรูปโปรไฟล์">
+                    <img id="acc-avatar-img" alt="" hidden /><span id="acc-avatar-letter">F</span>
+                    <i class="acc-avatar-edit" aria-hidden="true">✎</i>
+                  </button>
+                  <div class="acc-name"><b id="acc-name">—</b><button type="button" class="acc-name-edit" data-section="profile" aria-label="แก้ไขชื่อ">✎</button></div>
+                  <p class="acc-sub" id="acc-sub"></p>
+                  <span class="acc-role" id="acc-role"></span>
+                </div>
+                <nav class="acc-list" aria-label="เมนูจัดการบัญชี">
+                  <button type="button" class="acc-row" data-section="profile"><span class="acc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c.6-3.6 3.6-5.6 7.2-5.6s6.6 2 7.2 5.6"/></svg></span><span class="acc-label">ข้อมูลส่วนตัว</span><span class="acc-chev" aria-hidden="true">›</span></button>
+                  <button type="button" class="acc-row" data-section="faculties"><span class="acc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.2C19.5 15.4 12 20 12 20z"/></svg></span><span class="acc-label">คณะที่สนใจ</span><span class="acc-chev" aria-hidden="true">›</span></button>
+                  <button type="button" class="acc-row" data-section="notifications"><span class="acc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 1.5H5z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg></span><span class="acc-label">ตั้งค่าการแจ้งเตือน</span><span class="acc-chev" aria-hidden="true">›</span></button>
+                  <button type="button" class="acc-row" data-section="invites"><span class="acc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span><span class="acc-label">ลิงก์คำเชิญ</span><span class="acc-chev" aria-hidden="true">›</span></button>
+                  <button type="button" class="acc-row" data-section="help"><span class="acc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2.9-1.2 1.8"/><circle cx="12" cy="16.6" r=".6" fill="currentColor"/></svg></span><span class="acc-label">ช่วยเหลือ / ติดต่อเรา</span><span class="acc-chev" aria-hidden="true">›</span></button>
+                </nav>
+                <button type="button" class="acc-logout" id="acc-logout"><span class="acc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4.5H7A2.5 2.5 0 0 0 4.5 7v10A2.5 2.5 0 0 0 7 19.5h7"/><path d="M10 12h10m0 0-3-3m3 3-3 3"/></svg></span>ออกจากระบบ</button>
+              </aside>
+              <div class="account-main">
+                <button type="button" class="acc-back" id="acc-back"><span aria-hidden="true">‹</span> จัดการบัญชี</button>
+
+                <section class="panel acc-panel" data-panel="profile" id="panel-profile" hidden>
+                  <div class="panel-heading"><div><h3>ข้อมูลส่วนตัว</h3><span class="helper">ข้อมูลนี้ใช้ปรับเนื้อหาให้เหมาะกับคุณ และไม่แสดงให้ผู้ใช้อื่นเห็น</span></div></div>
+                  <div class="acc-form">
+                    <div class="field"><label for="f-name">ชื่อที่แสดง</label><input id="f-name" maxlength="60" autocomplete="nickname" /></div>
+                    <div class="field"><label for="f-email">อีเมล (จาก Google)</label><input id="f-email" disabled /></div>
+                    <div class="field"><label for="f-school">โรงเรียน</label><input id="f-school" maxlength="120" placeholder="เช่น โรงเรียนสุรนารีวิทยา" /></div>
+                    <div class="acc-form-pair">
+                      <div class="field"><label for="f-grade">ระดับชั้น</label><select id="f-grade"><option value="">ไม่ระบุ</option></select></div>
+                      <div class="field"><label for="f-class">ห้อง / เลขที่</label><input id="f-class" maxlength="40" placeholder="เช่น 6/1 เลขที่ 19" /></div>
+                    </div>
+                  </div>
+                  <div class="acc-actions"><button type="button" class="button primary" id="save-profile">บันทึกข้อมูล</button><span class="acc-status" id="status-profile" role="status"></span></div>
+                </section>
+
+                <section class="panel acc-panel" data-panel="faculties" id="panel-faculties" hidden>
+                  <div class="panel-heading"><div><h3>คณะที่สนใจ</h3><span class="helper">เลือกได้สูงสุด <b id="fac-max">10</b> คณะ ใช้แนะนำข่าวและเกณฑ์รับที่ตรงกับคุณ</span></div><span class="acc-count" id="fac-count">0/10</span></div>
+                  <div class="acc-chips" id="fac-chips" role="group" aria-label="คณะที่สนใจ"></div>
+                  <div class="acc-actions"><button type="button" class="button primary" id="save-faculties">บันทึกคณะที่สนใจ</button><span class="acc-status" id="status-faculties" role="status"></span></div>
+                </section>
+
+                <section class="panel acc-panel" data-panel="notifications" id="panel-notifications" hidden>
+                  <div class="panel-heading"><div><h3>ตั้งค่าการแจ้งเตือน</h3><span class="helper">แจ้งเตือนภายในเว็บ TCAS Buddy เท่านั้น ยังไม่ส่งอีเมลหรือ push</span></div><span class="acc-status" id="status-notifications" role="status"></span></div>
+                  <div class="acc-toggles" id="notify-list"></div>
+                </section>
+
+                <section class="panel acc-panel" data-panel="invites" id="panel-invites" hidden>
+                  <div class="panel-heading"><div><h3>ลิงก์คำเชิญ</h3><span class="helper">ชวนเพื่อน ผู้ปกครอง หรือคุณครูให้เข้ามาใช้ TCAS Buddy ด้วยกัน</span></div></div>
+                  <div class="acc-invite-form">
+                    <div class="field"><label for="inv-label">ชื่อลิงก์ (ไม่บังคับ)</label><input id="inv-label" maxlength="60" placeholder="เช่น เพื่อนห้อง 6/1" /></div>
+                    <div class="field"><label for="inv-max">จำกัดจำนวนคนใช้</label><select id="inv-max"><option value="">ไม่จำกัด</option><option value="1">1 คน</option><option value="5">5 คน</option><option value="20">20 คน</option><option value="50">50 คน</option></select></div>
+                    <div class="field"><label for="inv-exp">หมดอายุ</label><select id="inv-exp"><option value="">ไม่หมดอายุ</option><option value="1">ใน 1 วัน</option><option value="7" selected>ใน 7 วัน</option><option value="30">ใน 30 วัน</option></select></div>
+                    <button type="button" class="button primary" id="create-invite">สร้างลิงก์</button>
+                  </div>
+                  <span class="acc-status" id="status-invites" role="status"></span>
+                  <ul class="acc-invites" id="invite-list"></ul>
+                </section>
+
+                <section class="panel acc-panel" data-panel="help" id="panel-help" hidden>
+                  <div class="panel-heading"><div><h3>ช่วยเหลือ / ติดต่อเรา</h3><span class="helper">เลือกช่องทางที่สะดวกที่สุดสำหรับคุณ</span></div></div>
+                  <div class="acc-help-grid">
+                    <a class="acc-help-card" href="/faq"><span class="acc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2.9-1.2 1.8"/><circle cx="12" cy="16.6" r=".6" fill="currentColor"/></svg></span><b>คู่มือและคำถามที่พบบ่อย</b><small>วิธีใช้งานแต่ละฟีเจอร์</small></a>
+                    <a class="acc-help-card" href="/community"><span class="acc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 1.5H5z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg></span><b>เปิด Ticket คุยกับแอดมิน</b><small>แชตส่วนตัวเมื่อมีปัญหาเกี่ยวกับบัญชี</small></a>
+                    <a class="acc-help-card" id="help-hotline" href="tel:021265111"><span class="acc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c.6-3.6 3.6-5.6 7.2-5.6s6.6 2 7.2 5.6"/></svg></span><b>สายด่วน TCAS</b><small id="help-hotline-num">02-126-5111</small></a>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        {% elif page == 'admin' %}
+          <div class="admin-gate" id="admin-gate">
+            <div class="panel admin-gate-card">
+              <div class="admin-gate-mark">✦</div>
+              <h2 id="admin-gate-title">กำลังตรวจสอบสิทธิ์…</h2>
+              <p id="admin-gate-copy">รอสักครู่ ระบบกำลังตรวจสอบว่าคุณมีสิทธิ์เข้าหลังบ้านหรือไม่</p>
+              <button class="button primary" id="admin-gate-login" hidden>เข้าสู่ระบบด้วย Google</button>
+              <a class="text-link" href="/">← กลับหน้าหลัก</a>
+            </div>
+          </div>
+          <div class="admin-page" id="admin-page" hidden>
+            <div class="page-intro"><div><span class="eyebrow">พื้นที่สำหรับทีมดูแล</span><h1>ศูนย์จัดการแอดมิน</h1><p>จัดการผู้ใช้ กระทู้ชุมชน มหาวิทยาลัย และ Ticket ได้ในที่เดียว</p></div><span class="admin-status" id="admin-online"><i></i> ตรวจสอบสถานะ…</span></div>
+            <div class="admin-tabs" role="tablist">
+              <button class="active" data-admin-tab="overview" role="tab">ภาพรวม</button>
+              <button data-admin-tab="users" role="tab">ผู้ใช้ &amp; สิทธิ์</button>
+              <button data-admin-tab="posts" role="tab">กระทู้ชุมชน</button>
+              <button data-admin-tab="institutes" role="tab">มหาวิทยาลัย &amp; เกณฑ์รับ</button>
+              <button data-admin-tab="tickets" role="tab">Ticket</button>
+              <button data-admin-tab="audit" role="tab">บันทึกการทำงาน</button>
+            </div>
+
+            <!-- ภาพรวม -->
+            <div class="admin-pane" data-admin-pane="overview">
+              <div class="admin-grid">
+                <div class="panel admin-stat"><span>ผู้ใช้ทั้งหมด</span><strong data-admin-stat="users">—</strong><small>นับจากบัญชีที่เข้าสู่ระบบ</small><div class="mini-bars"><i></i><i></i><i></i></div></div>
+                <div class="panel admin-stat"><span>ออนไลน์อยู่</span><strong data-admin-stat="online">—</strong><small>ใช้งานภายใน 2 นาทีล่าสุด</small><div class="mini-bars teal"><i></i><i></i><i></i></div></div>
+                <div class="panel admin-stat"><span>เข้าชมเว็บ</span><strong data-admin-stat="views">—</strong><small>ยอดเข้าชมสะสมทั้งหมด</small><div class="mini-bars pink"><i></i><i></i><i></i></div></div>
+              </div>
+              <div class="admin-overview-grid">
+                <div class="panel"><div class="panel-heading"><h3>ผู้ใช้ตามบทบาท</h3><span class="helper">แยกตามที่ผู้ใช้เลือกตอนสมัคร</span></div><div id="admin-role-breakdown" class="role-breakdown"></div></div>
+                <div class="panel"><div class="panel-heading"><h3>สถานะ Ticket</h3><span class="helper">แอดมินเป็นคนปิดตั๋ว</span></div><div id="admin-ticket-breakdown" class="role-breakdown"></div></div>
+              </div>
+              <div class="admin-columns"><div class="panel"><div class="panel-heading"><h3>จัดการข้อมูล</h3><span>เมนูแอดมิน</span></div><div class="admin-actions"><button data-admin-goto="posts">☷ จัดการกระทู้ <span>→</span></button><button data-admin-goto="users">♙ จัดการผู้ใช้และสิทธิ์ <span>→</span></button><button data-admin-goto="institutes">⌘ มหาวิทยาลัยและเกณฑ์รับ <span>→</span></button><button data-admin-goto="tickets">☷ คิว Ticket <span>→</span></button></div></div><div class="panel"><div class="panel-heading"><h3>ระบบปลอดภัย</h3><span>RLS enabled</span></div><p class="muted-copy">ข้อมูลส่วนตัว โพล Ticket และประวัติ AI จะเข้าถึงได้ตามสิทธิ์จาก Supabase Row Level Security เท่านั้น</p><div class="security-pill">✓ service key ไม่เปิดใน browser</div></div></div>
+            </div>
+
+            <!-- ผู้ใช้ & สิทธิ์ -->
+            <div class="admin-pane" data-admin-pane="users" hidden>
+              <div class="panel">
+                <div class="panel-heading"><div><h3>ผู้ใช้ทั้งหมด</h3><span class="helper">เปลี่ยนบทบาท แต่งตั้ง/ถอดสิทธิ์แอดมิน และระงับบัญชีได้</span></div><div class="admin-search"><span>⌕</span><input id="admin-user-search" type="search" placeholder="ค้นหาชื่อ หรืออีเมล..." /></div></div>
+                <p class="news-status" id="admin-users-status" hidden></p>
+                <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ผู้ใช้</th><th>บทบาท</th><th>สิทธิ์</th><th>กิจกรรม</th><th>เข้าล่าสุด</th><th></th></tr></thead><tbody id="admin-users-body"></tbody></table></div>
+              </div>
+            </div>
+
+            <!-- กระทู้ชุมชน -->
+            <div class="admin-pane" data-admin-pane="posts" hidden>
+              <div class="panel">
+                <div class="panel-heading"><div><h3>กระทู้ทั้งหมด</h3><span class="helper">ลบกระทู้ที่ไม่เหมาะสม และจัดการความคิดเห็น</span></div><div class="admin-search"><span>⌕</span><input id="admin-post-search" type="search" placeholder="ค้นหากระทู้..." /></div></div>
+                <p class="news-status" id="admin-posts-status" hidden></p>
+                <ul class="admin-post-list" id="admin-posts-list"></ul>
+              </div>
+              <div class="panel">
+                <div class="panel-heading"><div><h3>จัดการ tag</h3><span class="helper">เปลี่ยนสี หรือลบ tag ที่ไม่ใช้แล้ว (ลบแล้วจะถูกถอดออกจากทุกกระทู้)</span></div></div>
+                <div class="tag-manager" id="admin-tag-list"></div>
+              </div>
+            </div>
+
+            <!-- มหาวิทยาลัย & เกณฑ์รับ -->
+            <div class="admin-pane" data-admin-pane="institutes" hidden>
+              <div class="admin-subtabs"><button class="active" data-subtab="institutes">รายชื่อมหาวิทยาลัย</button><button data-subtab="admissions">เกณฑ์รับ / รอบสมัคร</button></div>
+              <div class="admin-subpane" data-subpane="institutes">
+                <div class="panel">
+                  <div class="panel-heading"><div><h3>มหาวิทยาลัย</h3><span class="helper">เพิ่ม แก้ไข หรือซ่อนรายชื่อที่แสดงในหน้า "ข้อมูลมหาวิทยาลัย"</span></div><div class="admin-search"><span>⌕</span><input id="admin-inst-search" type="search" placeholder="ค้นหามหาวิทยาลัย..." /></div><button class="button primary" id="admin-inst-add">+ เพิ่ม</button></div>
+                  <p class="news-status" id="admin-inst-status" hidden></p>
+                  <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>มหาวิทยาลัย</th><th>ประเภท</th><th>เมือง</th><th>สถานะ</th><th></th></tr></thead><tbody id="admin-inst-body"></tbody></table></div>
+                </div>
+              </div>
+              <div class="admin-subpane" data-subpane="admissions" hidden>
+                <div class="panel">
+                  <div class="panel-heading"><div><h3>เกณฑ์รับ / รอบสมัคร</h3><span class="helper">ข้อมูลที่แสดงในหน้า "ค้นหาโควตา / TCAS" — ต้องใส่ลิงก์แหล่งอ้างอิงเสมอ</span></div><button class="button primary" id="admin-adm-add">+ เพิ่ม</button></div>
+                  <p class="news-status" id="admin-adm-status" hidden></p>
+                  <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>มหาวิทยาลัย</th><th>คณะ</th><th>รอบ</th><th>กำหนดการ</th><th>สถานะ</th><th></th></tr></thead><tbody id="admin-adm-body"></tbody></table></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Ticket -->
+            <div class="admin-pane" data-admin-pane="tickets" hidden>
+              <div class="panel admin-tickets">
+                <div class="panel-heading"><div><h3>คิว Ticket</h3><span class="helper">ตอบกลับผู้ใช้ — แอดมินเป็นคนปิดตั๋ว</span></div><div class="filter-row" id="admin-ticket-filters"><button class="filter active" data-ticket-status="">ทั้งหมด</button><button class="filter" data-ticket-status="open">รอตอบ</button><button class="filter" data-ticket-status="answered">ตอบแล้ว</button><button class="filter" data-ticket-status="closed">ปิดแล้ว</button></div></div>
+                <div class="admin-ticket-layout">
+                  <ul class="ticket-list admin" id="admin-ticket-list"><li class="acc-empty">กำลังโหลด…</li></ul>
+                  <div class="ticket-chat" id="admin-ticket-chat">
+                    <div class="ticket-chat-empty" id="admin-ticket-empty"><p>เลือก Ticket จากคิวด้านซ้ายเพื่อดูข้อความและตอบกลับ</p></div>
+                    <div class="ticket-chat-body" id="admin-ticket-body" hidden>
+                      <div class="ticket-chat-head"><div><b id="admin-ticket-subject"></b><small id="admin-ticket-user"></small></div><div class="ticket-chat-actions"><span class="acc-badge" id="admin-ticket-pill"></span><button class="acc-mini" id="admin-ticket-answer">ตอบแล้ว</button><button class="acc-mini danger" id="admin-ticket-close">ปิดตั๋ว</button></div></div>
+                      <div class="chat-messages" id="admin-ticket-messages"></div>
+                      <form class="chat-compose" id="admin-ticket-form"><input id="admin-ticket-input" maxlength="3000" placeholder="พิมพ์คำตอบถึงผู้ใช้..." autocomplete="off" /><button class="button primary" type="submit">ส่ง</button></form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- บันทึกการทำงาน -->
+            <div class="admin-pane" data-admin-pane="audit" hidden>
+              <div class="panel">
+                <div class="panel-heading"><div><h3>บันทึกการทำงานของแอดมิน</h3><span class="helper">ใครแก้อะไรไว้ — ตรวจสอบย้อนหลังได้</span></div><button class="acc-mini" id="admin-audit-refresh">รีเฟรช</button></div>
+                <p class="news-status" id="admin-audit-status" hidden></p>
+                <ul class="audit-list" id="admin-audit-list"></ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- กล่องโต้ตอบแก้ไข (ใช้ร่วมกันทุกแท็บ) -->
+          <div class="modal-backdrop" id="admin-edit-modal" role="dialog" aria-modal="true">
+            <div class="modal-card admin-edit-card">
+              <button class="modal-close" data-close-admin-edit aria-label="ปิด">×</button>
+              <h2 id="admin-edit-title">แก้ไข</h2>
+              <p id="admin-edit-subtitle"></p>
+              <div class="admin-edit-form" id="admin-edit-form"></div>
+              <div class="avatar-modal-actions"><button type="button" class="button outline" data-close-admin-edit>ยกเลิก</button><button type="button" class="button primary" id="admin-edit-save">บันทึก</button></div>
+              <div class="login-status" id="admin-edit-status" role="status"></div>
+            </div>
+          </div>
+        {% endif %}
+      </section>
+    </main>
+  </div>
+  <div class="modal-backdrop" id="avatar-modal" role="dialog" aria-modal="true" aria-labelledby="avatar-modal-title"><div class="modal-card avatar-modal-card"><button class="modal-close" data-close-avatar aria-label="ปิด">×</button><h2 id="avatar-modal-title">เลือกรูปโปรไฟล์</h2><p>แตะรูปที่ชอบ แล้วกดบันทึก</p><div class="avatar-grid" id="avatar-grid" role="radiogroup" aria-label="รูปโปรไฟล์"></div><div class="avatar-modal-actions"><button type="button" class="button outline" id="avatar-clear">ใช้ตัวอักษรแทน</button><button type="button" class="button primary" id="avatar-save">บันทึกรูปนี้</button></div><div class="login-status" id="avatar-status" role="status"></div></div></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <div class="modal-backdrop" id="login-modal"><div class="modal-card"><button class="modal-close" data-close-modal>×</button><div class="modal-sparkle">✦</div><h2>เข้าสู่ระบบ</h2><p>เริ่มต้นใช้เครื่องมือวางแผน TCAS Buddy ด้วยบัญชี Google</p><button class="google-button" id="google-login"><span>G</span> เข้าสู่ระบบด้วย Google</button><div class="modal-divider"><span>หรือ</span></div><p class="small-muted">ระบบจะขอสิทธิ์เท่าที่จำเป็น และจะบันทึกบทบาท/คำตอบตามที่คุณเลือกเท่านั้น</p><div class="login-status" id="login-status"></div></div></div>
+  <script src="/static/app.js?v=account-1"></script>
+  {% if page == 'account' %}<script src="/static/account.js?v=account-1"></script>{% endif %}
+  {% if page in ['community', 'admin'] %}<script src="/static/community.js?v=community-1"></script>{% endif %}
+  {% if page == 'community' %}<script src="/static/advisor.js?v=advisor-1"></script>{% endif %}
+  {% if page == 'tutor' %}<script src="/static/tutor.js?v=tutor-1"></script><script src="/static/library.js?v=library-1"></script>{% endif %}
+  {% if page == 'admin' %}<script src="/static/admin.js?v=admin-1"></script>{% endif %}
+</body>
+</html>

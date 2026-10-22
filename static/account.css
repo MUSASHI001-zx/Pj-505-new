@@ -1,0 +1,128 @@
+/* ===== หน้าจัดการบัญชี (/account) ===== */
+.account-page{max-width:1040px;margin:0 auto}
+.account-gate{max-width:420px;margin:48px auto;text-align:center;padding:34px 28px}
+.account-gate-mark{width:54px;height:54px;border-radius:18px;background:var(--lav);color:var(--purple);display:grid;place-items:center;margin:0 auto 14px}
+.account-gate-mark svg{width:26px;height:26px}
+.account-gate h2{font-size:18px;margin-bottom:6px}
+.account-gate p{color:var(--muted);font-size:12px;line-height:1.8;margin-bottom:16px}
+.account-gate[hidden],.account-layout[hidden],.acc-panel[hidden]{display:none!important}
+
+.account-layout{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+.account-side{padding:26px 20px 20px}
+.acc-hero{text-align:center;padding-bottom:18px}
+.acc-avatar{position:relative;width:96px;height:96px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #ddd6fa,0 10px 22px rgba(113,99,200,.18);background:linear-gradient(135deg,#f2b1cb,#8e7cdf);color:#fff;font:700 34px 'Baloo 2',sans-serif;cursor:pointer;padding:0;display:grid;place-items:center;margin:0 auto 12px}
+.acc-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.acc-avatar img[hidden]{display:none}
+.acc-avatar:focus-visible,.acc-row:focus-visible,.acc-logout:focus-visible,.acc-chip:focus-visible,.acc-name-edit:focus-visible,.avatar-option:focus-visible,.acc-switch input:focus-visible+span{outline:3px solid #b9aef0;outline-offset:2px}
+.acc-avatar-edit{position:absolute;right:-2px;bottom:2px;width:26px;height:26px;border-radius:50%;background:var(--purple);color:#fff;font-style:normal;font-size:12px;display:grid;place-items:center;border:2px solid #fff}
+.acc-name{display:flex;align-items:center;justify-content:center;gap:6px}
+.acc-name b{font-size:19px;letter-spacing:-.3px;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-name-edit{border:0;background:transparent;color:var(--purple);cursor:pointer;font-size:14px;padding:4px;border-radius:6px}
+.acc-sub{margin:3px 0 8px;color:var(--muted);font-size:12px;min-height:18px}
+.acc-role{display:inline-block;background:var(--lav);color:var(--purple-dark);font-size:11px;border-radius:20px;padding:4px 11px;font-weight:600}
+.acc-role:empty{display:none}
+
+.acc-list{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+.acc-row{display:flex;align-items:center;gap:12px;width:100%;border:0;background:transparent;padding:14px 14px;font:500 13px 'Noto Sans Thai',sans-serif;color:var(--ink);cursor:pointer;text-align:left;border-bottom:1px solid #f3f1fb;transition:background .15s}
+.acc-row:last-child{border-bottom:0}
+.acc-row:hover{background:#faf9ff}
+.acc-row.active{background:var(--lav);color:var(--purple-dark)}
+.acc-ico{width:20px;height:20px;display:inline-grid;place-items:center;color:var(--purple);flex:0 0 auto}
+.acc-ico svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.acc-label{flex:1}
+.acc-chev{color:#b7b3d0;font-size:20px;line-height:1}
+.acc-logout{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:16px;padding:13px;border-radius:12px;border:1px solid #e3e0f4;background:#f8f7ff;color:var(--purple-dark);font:600 13px 'Noto Sans Thai',sans-serif;cursor:pointer}
+.acc-logout:hover{background:#f1eeff}
+
+.account-main{min-width:0}
+.acc-back{display:none;border:0;background:transparent;color:var(--purple-dark);font:600 13px 'Noto Sans Thai',sans-serif;cursor:pointer;padding:4px 0;margin-bottom:12px}
+.acc-back span{font-size:20px;margin-right:4px;vertical-align:-1px}
+.acc-panel{padding:24px}
+.acc-panel .panel-heading{align-items:flex-start;gap:12px;margin-bottom:20px}
+.acc-panel .helper{display:block;margin-top:4px;font-size:11px;color:var(--muted);line-height:1.7}
+.acc-form{display:grid;gap:14px;max-width:520px}
+.acc-form-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.acc-form .field input:disabled{background:#f6f5fb;color:#9b98b4}
+.account-page .field input:focus,.account-page .field select:focus{border-color:#9383de;box-shadow:0 0 0 3px #ece8ff}
+.acc-actions{display:flex;align-items:center;gap:14px;margin-top:22px;flex-wrap:wrap}
+.acc-status{font-size:12px;color:var(--muted)}
+.acc-status.ok{color:#3f9d83}.acc-status.err{color:#c2546a}
+.button[disabled]{opacity:.6;cursor:progress}
+
+.acc-count{font-size:12px;font-weight:600;color:var(--purple-dark);background:var(--lav);border-radius:20px;padding:5px 11px;white-space:nowrap}
+.acc-chips{display:flex;flex-wrap:wrap;gap:8px}
+.acc-chip{border:1px solid #e5e1f6;background:#fcfcff;color:#6f6a88;border-radius:20px;padding:9px 14px;font:500 12px 'Noto Sans Thai',sans-serif;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.acc-chip:hover{border-color:#a99de6}
+.acc-chip[aria-pressed="true"]{background:var(--purple);border-color:var(--purple);color:#fff;font-weight:600}
+.acc-chip:disabled{opacity:.45;cursor:not-allowed}
+
+.acc-toggles{display:grid}
+.acc-toggle{display:flex;align-items:center;gap:14px;padding:15px 0;border-bottom:1px solid #f1f0f8}
+.acc-toggle:last-child{border-bottom:0}
+.acc-toggle-copy{flex:1}
+.acc-toggle-copy b{display:block;font-size:13px}
+.acc-toggle-copy small{display:block;color:var(--muted);font-size:11px;margin-top:3px;line-height:1.6}
+.acc-switch{position:relative;width:44px;height:26px;flex:0 0 auto}
+.acc-switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.acc-switch span{position:absolute;inset:0;border-radius:20px;background:#dcd8ee;transition:background .18s}
+.acc-switch span:after{content:'';position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(60,48,120,.25);transition:transform .18s}
+.acc-switch input:checked+span{background:var(--purple)}
+.acc-switch input:checked+span:after{transform:translateX(18px)}
+
+.acc-invite-form{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:12px;align-items:end;margin-bottom:10px}
+.acc-invites{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.acc-invite{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center;border:1px solid var(--line);border-radius:13px;padding:13px 14px;background:#fcfcff}
+.acc-invite.off{opacity:.62}
+.acc-invite-title{font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.acc-invite-meta{color:var(--muted);font-size:11px;grid-column:1}
+.acc-invite-url{grid-column:1/-1;font-size:12px;color:#5e567c;background:#f4f2ff;border-radius:9px;padding:8px 10px;word-break:break-all;user-select:all}
+.acc-invite-actions{display:flex;gap:6px;grid-column:2;grid-row:1}
+.acc-mini{border:1px solid #e3e0f4;background:#fff;color:var(--purple-dark);border-radius:9px;padding:6px 11px;font:600 11px 'Noto Sans Thai',sans-serif;cursor:pointer}
+.acc-mini:hover{background:#f6f4ff}
+.acc-mini.danger{color:#c2546a;border-color:#f3d5dc}
+.acc-badge{font-size:10px;font-weight:600;border-radius:12px;padding:3px 8px;background:#e7f8f2;color:#3f9d83}
+.acc-badge.off{background:#f1f0f6;color:#8f8ba8}
+.acc-empty{color:var(--muted);font-size:12px;padding:18px;text-align:center;border:1px dashed #e3e0f4;border-radius:13px}
+
+.acc-help-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.acc-help-card{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;padding:16px;background:#fcfcff;transition:border-color .15s,background .15s}
+.acc-help-card:hover{border-color:#b3a8ec;background:#f8f6ff}
+.acc-help-card b{font-size:13px}
+.acc-help-card small{color:var(--muted);font-size:11px;line-height:1.6}
+.acc-help-card .acc-ico{margin-bottom:4px}
+
+/* ตัวเลือกรูปโปรไฟล์ */
+.avatar-modal-card{width:min(440px,100%);text-align:center}
+.avatar-modal-card h2{font-size:19px;margin-bottom:4px}
+.avatar-modal-card>p{color:var(--muted);font-size:12px;margin-bottom:16px}
+.avatar-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;max-height:46vh;overflow:auto;padding:6px}
+.avatar-option{aspect-ratio:1;border-radius:50%;border:0;padding:0;background:#f4f2ff;cursor:pointer;box-shadow:0 0 0 2px transparent;transition:box-shadow .15s,transform .15s;overflow:hidden}
+.avatar-option img{width:100%;height:100%;object-fit:cover;display:block}
+.avatar-option:hover{transform:scale(1.05)}
+.avatar-option[aria-checked="true"]{box-shadow:0 0 0 3px #fff,0 0 0 6px var(--purple)}
+.avatar-modal-actions{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+.avatar-modal-actions .button{flex:1;min-width:140px}
+.avatar-modal-card .login-status{margin-top:10px}
+
+/* รูปโปรไฟล์ที่เลือกแล้ว แสดงในทุกจุดที่เคยเป็นตัวอักษร */
+.avatar.has-img,.avatar.small.has-img{background-size:cover;background-position:center;color:transparent;font-size:0}
+
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#2f2b52;color:#fff;font-size:13px;padding:11px 18px;border-radius:12px;box-shadow:0 12px 30px rgba(40,32,90,.28);z-index:80;max-width:calc(100vw - 32px)}
+.toast[hidden]{display:none}
+@media(prefers-reduced-motion:reduce){.acc-switch span,.acc-switch span:after,.avatar-option,.acc-chip{transition:none}}
+
+@media(max-width:1050px){.account-layout{grid-template-columns:300px 1fr}.acc-invite-form{grid-template-columns:1fr 1fr}.acc-invite-form .button{grid-column:1/-1}.acc-help-grid{grid-template-columns:1fr}}
+
+/* มือถือ: เมนูเต็มจอแบบรูปอ้างอิง แตะรายการแล้วเปิดหน้าย่อย */
+@media(max-width:760px){
+  .account-layout{grid-template-columns:1fr}
+  .account-side{border:0;box-shadow:none;background:transparent;padding:6px 0 0}
+  .acc-list{border-radius:16px;box-shadow:var(--shadow)}
+  .account-page[data-view="menu"] .account-main{display:none}
+  .account-page[data-view="section"] .account-side{display:none}
+  .account-page[data-view="section"] .acc-back{display:inline-block}
+  .acc-panel{padding:20px 16px}
+  .acc-form-pair{grid-template-columns:1fr}
+  .acc-invite-form{grid-template-columns:1fr}
+  .acc-row.active{background:transparent;color:var(--ink)}
+}
