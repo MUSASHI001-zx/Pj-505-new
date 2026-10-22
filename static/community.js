@@ -9,6 +9,13 @@
     query: '',
     posts: [],
     imageFile: null,
+    imageUrl: '',
+    ticketImageFile: null,
+    ticketImageUrl: '',
+    chatImageFile: null,
+    chatImageUrl: '',
+    adminTicketImageFile: null,
+    adminTicketImageUrl: '',
     ticketId: null,
     ticketStatus: '',
     adminTicketId: null,
@@ -204,6 +211,147 @@
     const token = await accessToken();
     if (!token) throw new Error('ยังไม่ได้เข้าสู่ระบบ');
     const response = await fetch('/api/community/uploads', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'อัปโหลดรูปไม่สำเร็จ');
+    return data.url || '';
+  }
+
+  // ---------- รูปภาพประกอบ Ticket ----------
+  function previewTicketImage() {
+    const file = state.ticketImageFile;
+    const preview = $('#new-ticket-image-preview');
+    const thumb = $('#new-ticket-image-thumb');
+    const clear = $('#new-ticket-image-clear');
+    if (!file || !preview || !thumb) { if (preview) preview.hidden = true; if (clear) clear.hidden = true; return; }
+    if (thumb.src?.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+    thumb.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    if (clear) clear.hidden = false;
+  }
+
+  function clearTicketImage() {
+    const input = $('#new-ticket-image');
+    const thumb = $('#new-ticket-image-thumb');
+    if (thumb?.src?.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+    if (input) input.value = '';
+    state.ticketImageFile = null;
+    state.ticketImageUrl = '';
+    const preview = $('#new-ticket-image-preview');
+    if (preview) preview.hidden = true;
+    const clear = $('#new-ticket-image-clear');
+    if (clear) clear.hidden = true;
+  }
+
+  async function uploadTicketImage() {
+    const file = state.ticketImageFile;
+    if (!file) return '';
+    if (file.size > 5 * 1024 * 1024) {
+      setStatus('#new-ticket-status', 'รูปใหญ่เกิน 5 MB — ลองย่อขนาดก่อนนะ', 'err');
+      return null;
+    }
+    const form = new FormData();
+    form.append('file', file);
+    const token = await accessToken();
+    if (!token) throw new Error('ยังไม่ได้เข้าสู่ระบบ');
+    const response = await fetch('/api/tickets/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'อัปโหลดรูปไม่สำเร็จ');
+    return data.url || '';
+  }
+
+  // ---------- รูปภาพในแชทผู้ใช้ ----------
+  function previewChatImage() {
+    const file = state.chatImageFile;
+    const preview = $('#chat-image-preview');
+    const thumb = $('#chat-image-thumb');
+    const clear = $('#chat-image-clear');
+    if (!file || !preview || !thumb) { if (preview) preview.hidden = true; if (clear) clear.hidden = true; return; }
+    if (thumb.src?.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+    thumb.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    if (clear) clear.hidden = false;
+  }
+
+  function clearChatImage() {
+    const input = $('#chat-image');
+    const thumb = $('#chat-image-thumb');
+    if (thumb?.src?.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+    if (input) input.value = '';
+    state.chatImageFile = null;
+    state.chatImageUrl = '';
+    const preview = $('#chat-image-preview');
+    if (preview) preview.hidden = true;
+    const clear = $('#chat-image-clear');
+    if (clear) clear.hidden = true;
+  }
+
+  async function uploadChatImage() {
+    const file = state.chatImageFile;
+    if (!file) return '';
+    if (file.size > 5 * 1024 * 1024) {
+      toast('รูปใหญ่เกิน 5 MB — ลองย่อขนาดก่อนนะ');
+      return null;
+    }
+    const form = new FormData();
+    form.append('file', file);
+    const token = await accessToken();
+    if (!token) throw new Error('ยังไม่ได้เข้าสู่ระบบ');
+    const response = await fetch('/api/tickets/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'อัปโหลดรูปไม่สำเร็จ');
+    return data.url || '';
+  }
+
+  // ---------- รูปภาพในแชทแอดมิน ----------
+  function previewAdminTicketImage() {
+    const file = state.adminTicketImageFile;
+    const preview = $('#admin-ticket-image-preview');
+    const thumb = $('#admin-ticket-image-thumb');
+    const clear = $('#admin-ticket-image-clear');
+    if (!file || !preview || !thumb) { if (preview) preview.hidden = true; if (clear) clear.hidden = true; return; }
+    if (thumb.src?.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+    thumb.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    if (clear) clear.hidden = false;
+  }
+
+  function clearAdminTicketImage() {
+    const input = $('#admin-ticket-image');
+    const thumb = $('#admin-ticket-image-thumb');
+    if (thumb?.src?.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+    if (input) input.value = '';
+    state.adminTicketImageFile = null;
+    state.adminTicketImageUrl = '';
+    const preview = $('#admin-ticket-image-preview');
+    if (preview) preview.hidden = true;
+    const clear = $('#admin-ticket-image-clear');
+    if (clear) clear.hidden = true;
+  }
+
+  async function uploadAdminTicketImage() {
+    const file = state.adminTicketImageFile;
+    if (!file) return '';
+    if (file.size > 5 * 1024 * 1024) {
+      toast('รูปใหญ่เกิน 5 MB — ลองย่อขนาดก่อนนะ');
+      return null;
+    }
+    const form = new FormData();
+    form.append('file', file);
+    const token = await accessToken();
+    if (!token) throw new Error('ยังไม่ได้เข้าสู่ระบบ');
+    const response = await fetch('/api/tickets/upload', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: form,
@@ -544,7 +692,16 @@
     const bubble = el('div', 'chat-bubble');
     const head = el('div', 'chat-msg-head');
     head.append(el('b', '', message.sender_name || (message.sender_type === 'admin' ? 'แอดมิน' : 'ผู้ใช้')), el('small', '', formatTime(message.created_at)));
-    bubble.append(head, el('p', '', message.body));
+    const content = el('div', 'chat-msg-content');
+    if (message.body) content.append(el('p', '', message.body));
+    if (message.image_url) {
+      const img = el('img', 'chat-msg-image');
+      img.src = message.image_url;
+      img.alt = 'รูปภาพประกอบ';
+      img.loading = 'lazy';
+      content.append(img);
+    }
+    bubble.append(head, content);
     row.append(bubble);
     return row;
   }
@@ -594,6 +751,10 @@
         return option;
       }));
     }
+    // Reset ticket image
+    state.ticketImageFile = null;
+    state.ticketImageUrl = '';
+    clearTicketImage();
     modal.classList.add('open');
     subject?.focus();
   }
@@ -617,9 +778,16 @@
     }
     if (status) status.textContent = 'กำลังส่ง...';
     try {
+      // Upload image if selected
+      let imageUrl = state.ticketImageUrl;
+      if (state.ticketImageFile && !imageUrl) {
+        const uploaded = await uploadTicketImage();
+        if (uploaded === null) { if (status) status.textContent = 'อัปโหลดรูปไม่สำเร็จ'; return; }
+        imageUrl = uploaded;
+      }
       const data = await authFetch('/api/tickets', {
         method: 'POST',
-        body: JSON.stringify({ subject, body, category }),
+        body: JSON.stringify({ subject, body, category, image_url: imageUrl }),
       });
       state.ticketId = data.ticket.id;
       closeNewTicketModal();
@@ -635,10 +803,17 @@
     event.preventDefault();
     const input = $('#chat-input');
     const body = input.value.trim();
-    if (!body || !state.ticketId) return;
+    if (!body && !state.chatImageFile) return;
     input.value = '';
     try {
-      const data = await authFetch(`/api/tickets/${state.ticketId}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+      let imageUrl = '';
+      if (state.chatImageFile) {
+        const uploaded = await uploadChatImage();
+        if (uploaded === null) { input.value = body; return; }
+        imageUrl = uploaded;
+        clearChatImage();
+      }
+      const data = await authFetch(`/api/tickets/${state.ticketId}/messages`, { method: 'POST', body: JSON.stringify({ body, image_url: imageUrl }) });
       const current = await authFetch(`/api/tickets/${state.ticketId}`);
       renderChat(current.messages);
       if (data.admin_online === false) toast(NO_ADMIN_REPLY);
@@ -761,10 +936,17 @@
     event.preventDefault();
     const input = $('#admin-ticket-input');
     const body = input.value.trim();
-    if (!body || !state.adminTicketId) return;
+    if (!body && !state.adminTicketImageFile) return;
     input.value = '';
     try {
-      await authFetch(`/api/admin/tickets/${state.adminTicketId}/reply`, { method: 'POST', body: JSON.stringify({ body }) });
+      let imageUrl = '';
+      if (state.adminTicketImageFile) {
+        const uploaded = await uploadAdminTicketImage();
+        if (uploaded === null) { input.value = body; return; }
+        imageUrl = uploaded;
+        clearAdminTicketImage();
+      }
+      await authFetch(`/api/admin/tickets/${state.adminTicketId}/reply`, { method: 'POST', body: JSON.stringify({ body, image_url: imageUrl }) });
       await openAdminTicket(state.adminTicketId);
       await loadAdminTickets(state.adminTicketStatus);
     } catch (error) {
@@ -853,6 +1035,16 @@
         const item = event.target.closest('.ticket-item');
         if (item) openTicket(Number(item.dataset.ticketId));
       });
+      // Admin ticket image handlers
+      $('#admin-ticket-image')?.addEventListener('change', (event) => {
+        const file = event.target.files?.[0];
+        state.adminTicketImageFile = file || null;
+        state.adminTicketImageUrl = '';
+        previewAdminTicketImage();
+        if (file) setStatus('#admin-ticket-status', '');
+      });
+      $('#admin-ticket-image-btn')?.addEventListener('click', () => $('#admin-ticket-image')?.click());
+      $('#admin-ticket-image-clear')?.addEventListener('click', clearAdminTicketImage);
       let searchTimer = null;
       $('#thread-search')?.addEventListener('input', (event) => {
         window.clearTimeout(searchTimer);

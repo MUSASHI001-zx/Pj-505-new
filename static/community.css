@@ -145,6 +145,9 @@
 .chat-msg-head small{font-size:9px;color:#b0adc0}
 .chat-msg.user .chat-msg-head small{color:rgba(255,255,255,.7)}
 .chat-bubble p{margin:0;font-size:11.5px;line-height:1.8;white-space:pre-wrap;word-break:break-word}
+.chat-msg-image{display:block;max-width:220px;max-height:300px;border-radius:10px;border:1px solid #e8e6f2;margin-top:8px;object-fit:cover;background:#f6f5fc}
+.chat-msg.user .chat-msg-image{border-color:rgba(255,255,255,.2)}
+.chat-msg.admin .chat-msg-image{border-color:#e2ddfb}
 .chat-compose{display:flex;gap:9px;padding:13px 18px;border-top:1px solid #f1f0f8;background:#fff}
 .chat-compose input{flex:1;border:1px solid #e8e6f2;background:#fcfcff;border-radius:11px;padding:11px 13px;outline:0;font:12px 'Noto Sans Thai';color:var(--ink)}
 .chat-compose input:focus{border-color:#9383de;box-shadow:0 0 0 3px #ece8ff}
