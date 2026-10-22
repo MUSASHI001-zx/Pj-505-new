@@ -23,11 +23,6 @@ def _text(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
-def _clip(value: str, limit: int = MAX_OUTPUT) -> str:
-    if len(value) <= limit:
-        return value
-    return value[:limit].rstrip() + "\n… (ตัดท้ายเพราะยาวเกินไป)"
-
 
 # ---------------------------------------------------------------------------
 # นิยามเครื่องมือ (สำหรับส่งให้โมเดลที่รองรับ function calling)

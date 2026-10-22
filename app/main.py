@@ -36,7 +36,6 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 from .admin import build_router as build_admin_router  # noqa: E402
 from .ai_chat import build_router as build_ai_chat_router  # noqa: E402
 from .community import build_router as build_community_router  # noqa: E402
-from .dekd import build_router as build_dekd_router  # noqa: E402
 from .scholarships import build_router as build_scholarships_router  # noqa: E402
 from .tickets import build_router as build_tickets_router  # noqa: E402
 from .tcas_ingest import build_router as build_tcas_ingest_router  # noqa: E402
@@ -44,7 +43,6 @@ from .tcas_live import build_router as build_tcas_live_router  # noqa: E402
 from .tcas_news import build_router as build_tcas_news_router  # noqa: E402
 from .tcas_news import fetch_news_with_total as fetch_mytcas_news_with_total  # noqa: E402
 from .tcas_sync_api import build_router as build_tcas_sync_router  # noqa: E402
-from .tutor import build_router as build_tutor_router  # noqa: E402
 from .setup_check import build_router as build_setup_check_router  # noqa: E402
 
 app.include_router(build_community_router(repo))
@@ -57,8 +55,6 @@ app.include_router(build_tcas_sync_router(repo))
 app.include_router(build_tcas_live_router(repo))
 app.include_router(build_tcas_news_router(repo))
 app.include_router(build_ai_chat_router(repo))
-app.include_router(build_dekd_router(repo))
-app.include_router(build_tutor_router(repo))
 
 PAGE_META = {
     "login": ("เข้าสู่ระบบ", "เริ่มต้นใช้งาน TCAS Buddy"),
@@ -69,7 +65,6 @@ PAGE_META = {
     "scholarships": ("ค้นหาทุน", "ค้นหาทุนการศึกษาจากกสศ. และ Scholarship.in.th ในที่เดียว"),
     "identity": ("ค้นหาตัวตนของคุณ", "ลองตอบคำถาม แล้วค่อย ๆ รู้จักตัวเองมากขึ้น"),
     "community": ("ช่วยเหลือ & สร้างโพล", "คุย ขอความเห็น และรับคำปรึกษาเมื่อไหร่ก็ได้"),
-    "tutor": ("AI Tutor / Notebook", "เรียนรู้แบบเป็นขั้นตอน พร้อมฝึกทำข้อสอบ"),
     "faq": ("คู่มือใช้งาน & คำถามที่พบบ่อย", "เริ่มต้นใช้งาน TCAS Buddy ได้ง่าย ๆ"),
     "account": ("จัดการบัญชี", "โปรไฟล์ ข้อมูลส่วนตัว การแจ้งเตือน และลิงก์คำเชิญ"),
     "admin": ("ศูนย์จัดการแอดมิน", "ดูภาพรวมและจัดการข้อมูลของระบบ"),
@@ -100,7 +95,7 @@ FAQS = [
     ("เริ่มใช้งาน TCAS Buddy อย่างไร?", "เริ่มจากเข้าสู่ระบบด้วย Google เลือกบทบาท และเลือกสิ่งที่อยากให้เราช่วยดูแล จากนั้นใช้เมนูด้านซ้ายเพื่อไปยังแต่ละฟีเจอร์"),
     ("ข้อมูลโควตาอ้างอิงจากที่ใด?", "ระบบจะแสดงแหล่งอ้างอิงและลิงก์ไปยัง myTCAS หรือประกาศทางการของมหาวิทยาลัยเสมอ โปรดตรวจสอบประกาศล่าสุดก่อนสมัครจริง"),
     ("กระดิ่งติดตามข่าวทำงานอย่างไร?", "กดติดตามบนหมวดข่าวที่สนใจ ระบบจะเตรียมแจ้งเตือนในบัญชีของคุณเมื่อมีข่าวใหม่ในหมวดนั้น"),
-    ("AI Tutor ใช้ทำอะไรได้บ้าง?", "ใช้สรุปบทเรียน อธิบายแนวคิด สร้างแบบฝึกหัดใหม่ และช่วยวางแผนอ่านหนังสือ โดยเนื้อหาที่ AI สร้างจะติดป้ายว่าเป็นเนื้อหาฝึก"),
+    ("AI ที่ปรึกษาในหน้าชุมชนใช้ทำอะไรได้บ้าง?", "ถามเรื่องเกณฑ์รับ โควตา ทุนการศึกษา หรือการเตรียมตัว TCAS ได้ โดย AI จะไปค้นข้อมูลจริงจาก myTCAS กสศ. และเด็กดีมาตอบ ไม่ตอบจากความจำล้วน ๆ"),
 ]
 
 

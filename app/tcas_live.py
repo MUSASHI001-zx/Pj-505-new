@@ -10,7 +10,6 @@
 """
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import Any
 
@@ -20,10 +19,8 @@ from fastapi import APIRouter, HTTPException
 from .tcas_sync import (
     MYTCAS_SITE,
     admission_records,
-    course_records,
     fetch_courses,
     fetch_rounds,
-    fetch_universities,
 )
 
 MAX_LIMIT = 120

@@ -190,7 +190,7 @@
       state.model = data.model || '';
       if (status) {
         status.textContent = state.configured
-          ? `พร้อมคุยเรื่องการเรียนและการเตรียมตัว · ${data.model_label || ''}`.trim()
+          ? `พร้อมคุยเรื่องการเรียนและการเตรียมตัว · ${data.model_label || ''} · ค้นข้อมูลจริงได้`.trim()
           : 'ยังไม่ได้เชื่อมต่อบริการ AI — เจ้าหน้าที่ต้องตั้งค่า API key';
       }
     } catch (error) {

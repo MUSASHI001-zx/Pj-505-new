@@ -122,9 +122,6 @@ def _guess_tags(text: str) -> list[str]:
     return tags
 
 
-def _is_article_page(page_html: str) -> bool:
-    return "tcas-alert-item" not in page_html and "article-item" in page_html
-
 
 def parse_article_page(page_html: str) -> list[dict[str, Any]]:
     """แยกรายการบทความจากหน้า category — โครงสร้างคือ <article class="article-box">"""
@@ -250,36 +247,3 @@ async def fetch_all(pages: int = 2, force: bool = False) -> list[dict[str, Any]]
             merged.append(item)
     merged.sort(key=lambda item: item.get("timestamp") or 0, reverse=True)
     return merged
-
-
-def build_router(repo: Any = None) -> Any:
-    from fastapi import APIRouter, HTTPException
-
-    router = APIRouter(prefix="/api/dekd")
-
-    @router.get("/library")
-    async def library(cat: str = "", q: str = "", pages: int = 2) -> dict[str, Any]:
-        """คลังข้อมูลเรื่องสอบ/ข่าว TCAS จากเด็กดี"""
-        try:
-            if cat and cat in CATEGORIES:
-                items = await fetch_category(cat, pages=pages)
-            else:
-                items = await fetch_all(pages=pages)
-        except Exception as exc:  # noqa: BLE001 — เว็บต้นทางมีปัญหาไม่ควรทำให้หน้าเว็บพัง
-            raise HTTPException(status_code=502, detail=f"ดึงข้อมูลจากเด็กดีไม่สำเร็จ: {exc}") from None
-
-        needle = q.strip().lower()
-        if needle:
-            items = [
-                item for item in items
-                if needle in f"{item.get('title', '')} {item.get('summary', '')} {' '.join(item.get('tags') or [])}".lower()
-            ]
-
-        return {
-            "items": items,
-            "total": len(items),
-            "categories": [{"key": key, "label": value["label"]} for key, value in CATEGORIES.items()],
-            "source": DEKD_SITE,
-        }
-
-    return router

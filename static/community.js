@@ -79,23 +79,6 @@
     }));
   }
 
-  function renderPopularTags() {
-    const box = $('#popular-tags');
-    if (!box) return;
-    box.replaceChildren(el('span', 'helper', 'tag ยอดนิยม'));
-    state.tags.slice(0, 9).forEach((tag) => {
-      const chip = el('button', 'tag-choice', `#${tag.name}`);
-      chip.type = 'button';
-      chip.classList.add(toneFor(tag.name));
-      chip.addEventListener('click', () => {
-        state.activeTag = state.activeTag === tag.name ? '' : tag.name;
-        renderTagFilter();
-        showTab('threads');   // tag อยู่ในแท็บ AI — กดแล้วต้องกลับไปดูกระทู้
-        loadPosts();
-      });
-      box.append(chip);
-    });
-  }
 
   function renderTagFilter() {
     const row = $('#tag-filter-row');
@@ -121,7 +104,6 @@
       state.tags = [];
     }
     renderTagSelector();
-    renderPopularTags();
     renderTagFilter();
   }
 
@@ -379,17 +361,32 @@
   // ---------- Ticket ----------
   function buildTicketItem(item, isAdmin) {
     const activeId = isAdmin ? state.adminTicketId : state.ticketId;
-    const li = el('li', `ticket-item${Number(item.id) === Number(activeId) ? ' active' : ''}`);
+    const status = item.status || 'open';
+    const li = el('li', `ticket-item ticket-item--${status}${Number(item.id) === Number(activeId) ? ' active' : ''}`);
     li.dataset.ticketId = item.id;
+
+    // แถบสีสถานะด้านซ้าย
+    li.append(el('span', 'ticket-item-bar'));
+
+    const body = el('div', 'ticket-item-body');
     const title = el('div', 'ticket-item-title');
     title.append(el('b', '', item.subject));
-    const pill = el('span', `acc-badge${item.status === 'closed' ? ' off' : ''}`, STATUS_LABELS[item.status] || item.status);
-    title.append(pill);
+    title.append(el('span', `ticket-status-pill ${status}`, STATUS_LABELS[status] || status));
+    body.append(title);
+
     const meta = el('div', 'ticket-item-meta');
-    meta.append(el('small', '', item.category || 'ทั่วไป'), el('small', '', formatTime(item.updated_at)));
-    if (item.message_count) meta.append(el('small', '', `${item.message_count} ข้อความ`));
-    li.append(title, meta);
-    if (!isAdmin && item.last_message) li.append(el('p', 'ticket-item-preview', item.last_message));
+    meta.append(el('span', 'ticket-item-cat', item.category || 'ทั่วไป'));
+    meta.append(el('small', '', formatTime(item.updated_at)));
+    if (item.message_count) {
+      const count = el('span', 'ticket-item-count', `${item.message_count} ข้อความ`);
+      meta.append(count);
+    }
+    body.append(meta);
+
+    if (!isAdmin && item.last_message) {
+      body.append(el('p', 'ticket-item-preview', item.last_message));
+    }
+    li.append(body);
     return li;
   }
 
@@ -402,6 +399,7 @@
       const items = data.items || [];
       if (!items.length) {
         list.replaceChildren(el('li', 'acc-empty', 'ยังไม่มี Ticket — กด + ใหม่เพื่อเริ่มปรึกษาแอดมิน'));
+        setEmptyChat('ยังไม่มี Ticket — กด + ใหม่เพื่อเริ่มปรึกษาแอดมิน');
         return;
       }
       list.replaceChildren(...items.map((item) => buildTicketItem(item, false)));
@@ -458,21 +456,61 @@
     } catch (error) { toast(error.message); }
   }
 
-  async function newTicket() {
-    const subject = window.prompt('หัวข้อที่ต้องการปรึกษาแอดมินคืออะไร?');
-    if (!subject || !subject.trim()) return;
-    const body = window.prompt('เล่ารายละเอียดที่ต้องการให้แอดมินช่วย:');
-    if (!body || !body.trim()) return;
+  const TICKET_CATEGORIES = ['ทั่วไป', 'ปัญหาการใช้งาน', 'บัญชีและข้อมูลส่วนตัว', 'เกี่ยวกับคณะ/การสมัคร', 'ข้อเสนอแนะ'];
+
+  function openNewTicketModal() {
+    const modal = $('#new-ticket-modal');
+    if (!modal) return;
+    const subject = $('#new-ticket-subject');
+    const body = $('#new-ticket-body');
+    const category = $('#new-ticket-category');
+    const status = $('#new-ticket-status');
+    if (subject) subject.value = '';
+    if (body) body.value = '';
+    if (status) status.textContent = '';
+    if (category) {
+      category.replaceChildren(...TICKET_CATEGORIES.map((name) => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        return option;
+      }));
+    }
+    modal.classList.add('open');
+    subject?.focus();
+  }
+
+  function closeNewTicketModal() {
+    $('#new-ticket-modal')?.classList.remove('open');
+  }
+
+  async function submitNewTicket() {
+    const subject = ($('#new-ticket-subject')?.value || '').trim();
+    const body = ($('#new-ticket-body')?.value || '').trim();
+    const category = ($('#new-ticket-category')?.value || 'ทั่วไป').trim();
+    const status = $('#new-ticket-status');
+    if (!subject) {
+      if (status) status.textContent = 'กรุณาใส่หัวข้อ';
+      return;
+    }
+    if (!body) {
+      if (status) status.textContent = 'กรุณาเขียนรายละเอียด';
+      return;
+    }
+    if (status) status.textContent = 'กำลังส่ง...';
     try {
       const data = await authFetch('/api/tickets', {
         method: 'POST',
-        body: JSON.stringify({ subject: subject.trim(), body: body.trim(), category: 'ทั่วไป' }),
+        body: JSON.stringify({ subject, body, category }),
       });
       state.ticketId = data.ticket.id;
+      closeNewTicketModal();
       await loadTickets();
       await openTicket(data.ticket.id);
       toast(data.admin_online ? 'ส่งข้อความแล้ว แอดมินจะตอบกลับ' : NO_ADMIN_REPLY);
-    } catch (error) { toast(error.message); }
+    } catch (error) {
+      if (status) status.textContent = error.message;
+    }
   }
 
   async function sendChatMessage(event) {
@@ -515,6 +553,14 @@
     if (messages) messages.replaceChildren();
     const input = $('#chat-input');
     if (input) input.value = '';
+    setEmptyChat('เลือก Ticket จากรายการด้านซ้ายเพื่อดูข้อความและพิมพ์ตอบ');
+  }
+
+  // เปลี่ยนข้อความในช่องว่างฝั่งขวา ให้ตรงกับสถานะปัจจุบัน
+  function setEmptyChat(message) {
+    const empty = $('#ticket-chat-empty');
+    if (!empty) return;
+    empty.replaceChildren(el('p', '', message));
   }
 
   function pollTickets() {
@@ -672,7 +718,11 @@
       $('#tag-new-add')?.addEventListener('click', createTag);
       $('#tag-new-input')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); createTag(); } });
       $('#submit-post')?.addEventListener('click', submitPost);
-      $('#new-ticket')?.addEventListener('click', newTicket);
+      $('#new-ticket')?.addEventListener('click', openNewTicketModal);
+      $('#new-ticket-close')?.addEventListener('click', closeNewTicketModal);
+      $('#new-ticket-cancel')?.addEventListener('click', closeNewTicketModal);
+      $('#new-ticket-submit')?.addEventListener('click', submitNewTicket);
+      $('#new-ticket-modal')?.addEventListener('click', (event) => { if (event.target.id === 'new-ticket-modal') closeNewTicketModal(); });
       $('#close-ticket')?.addEventListener('click', closeTicket);
       $('#chat-form')?.addEventListener('submit', sendChatMessage);
       $('#ticket-list')?.addEventListener('click', (event) => {

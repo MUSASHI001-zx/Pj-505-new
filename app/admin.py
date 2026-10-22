@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from .auth import database_error, is_admin, log_admin_action, require_database, require_user
 from .ticket_cleanup import build_helpers as build_ticket_helpers

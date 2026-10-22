@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any
 
 import httpx
@@ -28,7 +29,8 @@ except Exception:  # noqa: BLE001 — โหลดไม่ได้ก็ปล
 # ข้อจำกัดความยาว
 MAX_MESSAGE = 4000
 MAX_HISTORY = 20  # จำนวนข้อความย้อนหลังที่ส่งให้ AI
-REQUEST_TIMEOUT = 60.0
+REQUEST_TIMEOUT = 60.0  # ต่อ request
+TOTAL_TIMEOUT = 150.0  # รวมทุกรอบ (รวมการเรียกเครื่องมือ) — ผู้ใช้ไม่ควรรอนานเกินนี้
 
 # โมเดลเริ่มต้นต่อเจ้า — รหัสตาม API จริง
 # (เลือกตัวที่นิ่ง ๆ ไว้ก่อน เพราะโมเดลใหม่/ยอดนิยมมักเต็ม 503 หรือโควตา key ฟรีหมดเร็ว)
@@ -163,12 +165,14 @@ def _split_system(messages):
     return system, messages
 
 
-async def _call_forge(client, model, messages):
+async def _call_forge(client, model, messages, deadline=None):
     from .ai_tools import parse_tool_call, run_tool, to_openai_tools
 
     base = _env("BUILT_IN_FORGE_API_URL").rstrip("/")
     history = [{"role": "system", "content": SYSTEM_PROMPT}, *messages]
     for _ in range(MAX_TOOL_ROUNDS):
+        if deadline is not None and time.monotonic() >= deadline:
+            return ""
         response = await client.post(
             f"{base}/chat/completions",
             headers={
@@ -197,11 +201,13 @@ async def _call_forge(client, model, messages):
     return ""
 
 
-async def _call_anthropic(client, model, messages):
+async def _call_anthropic(client, model, messages, deadline=None):
     from .ai_tools import parse_tool_call, run_tool, to_anthropic_tools
 
     system, chat = _split_system(messages)
     for _ in range(MAX_TOOL_ROUNDS):
+        if deadline is not None and time.monotonic() >= deadline:
+            return ""
         response = await client.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -234,11 +240,13 @@ async def _call_anthropic(client, model, messages):
     return ""
 
 
-async def _call_openai(client, model, messages):
+async def _call_openai(client, model, messages, deadline=None):
     from .ai_tools import parse_tool_call, run_tool, to_openai_tools
 
     history = [{"role": "system", "content": SYSTEM_PROMPT}, *messages]
     for _ in range(MAX_TOOL_ROUNDS):
+        if deadline is not None and time.monotonic() >= deadline:
+            return ""
         response = await client.post(
             "https://api.openai.com/v1/chat/completions",
             headers={
@@ -266,7 +274,7 @@ async def _call_openai(client, model, messages):
     return ""
 
 
-async def _call_gemini(client, model, messages):
+async def _call_gemini(client, model, messages, deadline=None):
     from .ai_tools import parse_tool_call, run_tool, to_gemini_tools
 
     key = _env("GEMINI_API_KEY") or _env("GOOGLE_API_KEY")
@@ -276,6 +284,8 @@ async def _call_gemini(client, model, messages):
         for item in chat
     ]
     for _ in range(MAX_TOOL_ROUNDS):
+        if deadline is not None and time.monotonic() >= deadline:
+            return ""
         response = await client.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
             headers={"x-goog-api-key": key, "Content-Type": "application/json"},
@@ -342,9 +352,11 @@ async def call_with_fallback(
     provider: str,
     model: str,
     messages: list[dict[str, str]],
+    deadline: float | None = None,
 ) -> tuple[str, str, str | None]:
     """เรียก AI แล้วถ้าโมเดลที่เลือกล้ม (คนเยอะ) ให้ลองโมเดลอื่นของเจ้าเดียวกัน
 
+    deadline = เวลาสูงสุด (time.monotonic) ที่ยอมรอ — กันไม่ให้ผู้ใช้รอนานเกินไป
     คืน (คำตอบ, โมเดลที่ใช้จริง, ข้อความ error)
     """
     candidates = [model]
@@ -355,8 +367,10 @@ async def call_with_fallback(
 
     last_error: str | None = None
     for index, candidate in enumerate(candidates):
+        if deadline is not None and time.monotonic() >= deadline:
+            return "", model, last_error or "ใช้เวลาตอบนานเกินไป กรุณาถามอีกครั้ง"
         try:
-            answer = await CALLERS[provider](client, candidate, messages)
+            answer = await CALLERS[provider](client, candidate, messages, deadline=deadline)
         except httpx.HTTPStatusError as exc:
             body = ""
             try:
@@ -385,6 +399,8 @@ def build_router(repo: Any = None) -> APIRouter:
     @router.get("/config")
     async def config() -> dict[str, Any]:
         """บอกหน้าเว็บว่าเชื่อมต่อ AI ได้หรือยัง และโมเดลหลักที่ใช้"""
+        from .ai_tools import TOOL_DEFINITIONS
+
         provider = detect_provider()
         model = main_model(provider)
         return {
@@ -392,6 +408,7 @@ def build_router(repo: Any = None) -> APIRouter:
             "provider": provider or "",
             "model": model["key"],
             "model_label": model["label"],
+            "tools": [tool["name"] for tool in TOOL_DEFINITIONS],
         }
 
     @router.post("/chat")
@@ -417,8 +434,10 @@ def build_router(repo: Any = None) -> APIRouter:
         history = _clean_messages(payload.get("history"))
         messages = [*history, {"role": "user", "content": message}]
 
+        # จำกัดเวลารวมทั้งหมด — tool loop วนได้หลายรอบ ต้องไม่ให้ผู้ใช้รอนานเกิน
+        deadline = time.monotonic() + TOTAL_TIMEOUT
         async with httpx.AsyncClient(timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=10.0)) as client:
-            answer, used_model, error = await call_with_fallback(client, provider, model, messages)
+            answer, used_model, error = await call_with_fallback(client, provider, model, messages, deadline=deadline)
 
         if not answer:
             return {

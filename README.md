@@ -61,7 +61,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-server-key
 
 ## โครงสร้างสำคัญ
 
-`app/main.py` ให้บริการหน้าและ API, `app/repository.py` ติดต่อ Supabase REST, `app/community.py` ระบบกระทู้, `app/tickets.py` ระบบ Ticket, `app/admin.py` ศูนย์จัดการแอดมิน, `app/tcas_ingest.py` ช่องรับข้อมูลจาก myTCAS, `app/tcas_sync.py` + `app/tcas_live.py` ดึงรอบรับสมัครจาก myTCAS, `app/tcas_news.py` ดึงข่าวประกาศจาก myTCAS, `app/scholarships.py` ค้นหาทุนจากกสศ. + Scholarship.in.th, `app/ai_chat.py` AI ที่ปรึกษา, `app/tutor.py` AI Tutor / Notebook, `app/dekd.py` คลังชุดข้อมูลเด็กดี, `templates/app.html` รวมหน้าจอ, `static/` เก็บ CSS/JS, `supabase/migrations/` เก็บ schema + RLS, `docs/` เก็บคู่มือตั้งค่า Make.com, `public/manus-routes.json` ประกาศ routes สำหรับ Preview/SEO
+`app/main.py` ให้บริการหน้าและ API, `app/repository.py` ติดต่อ Supabase REST, `app/community.py` ระบบกระทู้, `app/tickets.py` ระบบ Ticket, `app/admin.py` ศูนย์จัดการแอดมิน, `app/tcas_ingest.py` ช่องรับข้อมูลจาก myTCAS, `app/tcas_sync.py` + `app/tcas_live.py` ดึงรอบรับสมัครจาก myTCAS, `app/tcas_news.py` ดึงข่าวประกาศจาก myTCAS, `app/scholarships.py` ค้นหาทุนจากกสศ. + Scholarship.in.th, `app/ai_chat.py` AI ที่ปรึกษา, `app/ai_tools.py` เครื่องมือให้ AI ค้นข้อมูลจริง, `app/dekd.py` ดึงข่าวเรื่องสอบจากเด็กดี, `templates/app.html` รวมหน้าจอ, `static/` เก็บ CSS/JS, `supabase/migrations/` เก็บ schema + RLS, `docs/` เก็บคู่มือตั้งค่า Make.com, `public/manus-routes.json` ประกาศ routes สำหรับ Preview/SEO
 
 ## ข้อมูลและความถูกต้อง
 
@@ -110,33 +110,21 @@ SUPABASE_SERVICE_ROLE_KEY=your-server-key
 | `OPENAI_API_KEY` | GPT (OpenAI) |
 | `GEMINI_API_KEY` | Gemini (Google) |
 
-**API:** `GET /api/ai/config` (สถานะการเชื่อมต่อ + โมเดลที่ใช้ได้), `POST /api/ai/chat` (`{message, model, history}` → `{answer, model, provider, error}`)
+**AI มี "เครื่องมือ" เรียกใช้เองได้** — ไม่ตอบจากความจำอย่างเดียว แต่ไปดึงข้อมูลสดจากระบบก่อนตอบ (ดู `app/ai_tools.py`)
+
+| เครื่องมือ | ดึงข้อมูลจาก |
+|---|---|
+| `search_programs` | หลักสูตร/คณะ ค่าเล่าเรียน อัตราการจบการศึกษา รอบรับ เกณฑ์คะแนน (myTCAS) |
+| `search_admissions` | รอบรับสมัคร โควตา เกณฑ์การคัดเลือก (myTCAS) |
+| `search_scholarships` | ทุนการศึกษาและเงื่อนไข (กสศ. + Scholarship.in.th) |
+| `search_news` | ข่าว/เรื่องราวเรื่องสอบ (เด็กดี) |
+| `list_universities` | รายชื่อมหาวิทยาลัยทั้งหมดพร้อมประเภท |
+
+ระบบวนเรียกเครื่องมือได้สูงสุด 4 รอบ ทำงานกับ Gemini, OpenAI, Anthropic และ Manus Forge
+
+**API:** `GET /api/ai/config` (สถานะการเชื่อมต่อ + โมเดลที่ใช้ + รายชื่อเครื่องมือ), `POST /api/ai/chat` (`{message, model, history}` → `{answer, model, provider, error}`)
 
 > ถ้ายังไม่ได้ตั้ง key ระบบจะแจ้งว่า "ยังไม่ได้เชื่อมต่อบริการ AI" ในหน้าแชท (ไม่พังหน้าเว็บ) — เจ้าหน้าที่ต้องใส่ key ใน `.env` แล้วรีสตาร์ทเซิร์ฟเวอร์
-
-## AI Tutor / Notebook (`/tutor`)
-
-สมุดโน้ตเรียนรายวิชา (TCAS / A-Level / TPAT / TOEIC) — ผู้ใช้แต่ละคนมีสมุดของตัวเอง เก็บบทเรียนที่เขียนเองหรือให้ AI สรุป แล้วคุยกับ AI ในบริบทของสมุดนั้น
-
-- **3 โหมดการ์ด** (เรียนรู้แบบรวม / ฝึกทำข้อสอบ / วางแผนอ่านหนังสือ) — กดแล้วเปิดหน้าต่างแชทกับ AI
-- **สมุดโน้ตแยกตามวิชา** — สลับแท็บได้ แต่ละวิชาแยกบทเรียนและประวัติคุยกัน
-- **AI อ้างอิงบทเรียนของคุณ** — ส่งบทเรียนล่าสุด 6 ชิ้นไปเป็นบริบทให้ AI พร้อมระบุว่าอ้างอิงจากสมุดโน้ต
-- **เพิ่มบทเรียนได้ 2 ทาง** — เขียนเอง หรือวางเนื้อหาแล้วให้ AI สรุปเป็นบทเรียน
-- **ประวัติคุย** — เก็บไว้ในสมุด ทำให้ AI จำบริบทได้ต่อเนื่อง
-
-**ตารางที่ใช้:** `notebooks`, `notebook_sources`, `tutor_messages` (สร้างจาก `supabase/migrations/012_tutor_notebooks.sql`)
-
-**API** (ต้อง Bearer token): `GET /api/tutor/notebooks`, `GET /api/tutor/notebooks/{subject}`, `POST /api/tutor/notebooks/{subject}/sources`, `DELETE /api/tutor/sources/{id}`, `GET /api/tutor/notebooks/{subject}/messages`, `POST /api/tutor/notebooks/{subject}/chat`, `POST /api/tutor/notebooks/{subject}/summarize`
-
-### คลังชุดข้อมูลเด็กดี (ในหน้า AI Tutor)
-
-ดึงข้อมูลเรื่องสอบ/ข่าว TCAS จาก [Dek-D](https://www.dek-d.com/) มารวมไว้ในหน้า Notebook ML — เป็นเว็บ PHP ไม่มี API สาธารณะ จึงต้อง parse HTML (ดู `app/dekd.py`)
-
-**9 หมวด** — TCAS Alert (ข่าวแจ้งเตือนเร่งด่วน), TCAS Daily, TCAS Review, TCAS Coach, TCAS School Tour, TCAS Event, Dream Campus, TCAS Idol, ติว TCAS
-
-**รายการแต่ละอันมี** — หัวข้อ ข้อความย่อ วันเวลา รูปปก ลิงก์ต้นทาง และแท็กที่เดาจากเนื้อหา (portfolio, quota, tgat, tpat, a-level, admission, dekd, scholarship, exam)
-
-**API:** `GET /api/dekd/library?cat=&q=&pages=` — `cat` เป็น key ของหมวด, `pages` คือจำนวนหน้าที่ดึงต่อหมวด (15 รายการต่อหน้า) cache 15 นาที
 
 ## ระบบ Ticket (`/community` แท็บ Ticket / ติดต่อแอดมิน)
 

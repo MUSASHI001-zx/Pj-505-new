@@ -1,0 +1,19 @@
+# บังคับให้เก็บไฟล์เป็น LF เสมอ ไม่ว่าจะ commit จาก Windows หรือ Linux
+# ทำให้ diff ไม่เต็มไปด้วยการเปลี่ยนแปลง line ending ทั้งไฟล์
+* text=auto eol=lf
+
+# ไฟล์ binary ห้ามแปลง
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+
+# ไฟล์ที่ต้องเก็บ CRLF (สคริปต์ Windows)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

@@ -12,8 +12,7 @@
 - [x] **ระบบ Ticket แชทส่วนตัว** — ผู้ใช้เปิด Ticket พิมพ์คุยกับแอดมินแบบส่วนตัว; ไม่มีแอดมินออนไลน์จะตอบ “ยังไม่มีแอดมินอยู่ในขณะนี้” แต่ยังเก็บข้อความไว้; แอดมินตอบกลับและปิดตั๋วได้ (`/api/tickets/*`, `/api/admin/tickets/*`)
 - [x] **หลังบ้าน Admin (คิว Ticket)** — แสดงยอดผู้ใช้/กระทู้/Ticket รอจัดการ, อ่าน-ตอบ-ปิดตั๋วจากคิว, heartbeat สถานะออนไลน์ของแอดมิน
 - [x] **ระบบหลังบ้าน (แอดมินเท่านั้น)** — ประตูสิทธิ์หน้า `/admin` + ตรวจสิทธิ์ซ้ำทุก API; แท็บภาพรวม (ผู้ใช้/ออนไลน์/ยอดชม/แยกตามบทบาท/สถานะ Ticket), ผู้ใช้ & สิทธิ์ (เปลี่ยนบทบาท แต่งตั้ง-ถอดสิทธิ์แอดมิน ตั้งชื่อ ระงับบัญชี), กระทู้ชุมชน (ลบกระทู้/คอมเมนต์ จัดการ tag), มหาวิทยาลัย & เกณฑ์รับ (เพิ่ม/แก้ไข/ซ่อน), Ticket, และบันทึกการทำงาน (audit log) — `supabase/migrations/008_admin.sql`
-- [ ] **หน้า AI Tutor / Notebook ML** — สมุดโน้ต/แหล่งข้อมูล, โหมดเรียนรวมและโหมดฝึกข้อสอบ, หมวด TCAS/A-Level/TPAT/TOEIC, AI อธิบายและสร้างข้อสอบฝึกใหม่พร้อมป้ายกำกับ
-- [ ] **หน้า How to / FAQ** — สอนใช้งาน Login, ข่าว/กระดิ่ง, โควตา, ตัวตน, โพล, Ticket และ AI Tutor
+- [ ] **หน้า How to / FAQ** — สอนใช้งาน Login, ข่าว/กระดิ่ง, โควตา, ตัวตน, โพล, Ticket และ AI ที่ปรึกษา
 - [ ] **หลังบ้าน Admin** — แยกสิทธิ์ admin; dashboard สรุปผู้ใช้/role/onboarding/ผู้สมัคร/เข้าชม; จัดการข่าว/สถาบัน/เกณฑ์รับ/แจ้งเตือน/Ticket/admin presence
-- [ ] **Supabase schema และ RLS** — migrations สำหรับ profiles, onboarding_answers, page_views, registrations, news, follows, bookmarks, notifications, institutions, admissions, identity_results, polls, poll_options, poll_votes, tickets, ticket_messages, admin_presence, notebooks, notebook_sources และ ai_messages; service key ต้องอยู่ backend เท่านั้น
+- [ ] **Supabase schema และ RLS** — migrations สำหรับ profiles, onboarding_answers, page_views, registrations, news, follows, bookmarks, notifications, institutions, admissions, identity_results, polls, poll_options, poll_votes, tickets, ticket_messages, admin_presence และ ai_messages; service key ต้องอยู่ backend เท่านั้น
 - [ ] **การส่งมอบ** — มี `manus-routes.json`, health endpoint, README ตั้งค่า Supabase/Google, Dockerfile สำหรับ Python, ตรวจ diagnostics และเปิด Preview; checkpoint แยกจากการ publish สาธารณะ

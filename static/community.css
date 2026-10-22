@@ -95,7 +95,7 @@
 .admin-presence i{width:7px;height:7px;border-radius:50%;background:#d8d4ea;flex:0 0 auto}
 .admin-presence.on{background:#e7f8f2;border-color:#cdeee0;color:#3f9d83}
 .admin-presence.on i{background:#4fbf94;box-shadow:0 0 0 3px rgba(79,191,148,.18)}
-.ticket-list{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:520px;overflow:auto}
+.ticket-list{list-style:none;margin:0;padding:0;display:grid;gap:8px;align-content:start;max-height:520px;overflow:auto}
 .ticket-item{border:1px solid #f0eef8;background:#fcfcff;border-radius:12px;padding:11px 12px;cursor:pointer;transition:border-color .15s,background .15s}
 .ticket-item:hover{border-color:#b3a8ec;background:#f8f6ff}
 .ticket-item.active{border-color:var(--purple);background:#f5f2ff}
@@ -110,8 +110,8 @@
 .ticket-chat-empty{text-align:center;padding:52px 24px;color:#9d99af}
 .ticket-chat-empty h3{font-size:15px;margin-bottom:6px;color:var(--ink)}
 .ticket-chat-empty p{font-size:11px;line-height:1.8}
-.ticket-chat-empty .ticket-icon{margin:0 auto 12px}
 .ticket-chat-body{display:flex;flex-direction:column;flex:1;min-height:0}
+.ticket-chat-body[hidden]{display:none!important}
 .ticket-chat-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid #f1f0f8;flex-wrap:wrap}
 .ticket-chat-head b{display:block;font-size:13px}
 .ticket-chat-head small{display:block;color:#aaa7bb;font-size:10px;margin-top:2px}
@@ -166,3 +166,56 @@
   .ticket-chat-head{padding:13px}
   .chat-compose{padding:11px 13px}
 }
+
+/* ---------- ปรับหน้า Ticket ให้ดูดีขึ้น ---------- */
+.ticket-layout{grid-template-columns:320px 1fr;align-items:stretch}
+.ticket-sidebar{display:flex;flex-direction:column;padding:18px;max-height:min(74vh,760px)}
+.ticket-sidebar .ticket-list{flex:1;min-height:120px}
+.ticket-side-foot{margin-top:12px;padding-top:12px;border-top:1px solid #f1f0f8}
+.ticket-side-foot .hotline{margin:0}
+.ticket-chat{min-height:min(74vh,760px);height:100%}
+.ticket-chat-empty{padding:28px;display:flex;flex-direction:column;height:100%;overflow:auto}
+.ticket-chat-empty[hidden]{display:none!important}
+.ticket-help-card{background:#f9f8ff;border:1px solid #efedf9;border-radius:13px;padding:13px 14px;display:flex;flex-direction:column;gap:6px}
+.ticket-help-label{font-size:10px;color:#a8a5bb;text-transform:uppercase;letter-spacing:.7px}
+.ticket-help-link{font-size:11.5px;color:#6f62c0;text-decoration:none;font-weight:600}
+.ticket-help-link:hover{text-decoration:underline}
+.ticket-chat-head{background:#fcfcff}
+.ticket-chat-title{min-width:0}
+.ticket-chat-title b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ticket-chat-body .chat-messages{max-height:none;flex:1;min-height:0}
+.ticket-new-modal{width:min(520px,100%);text-align:left}
+.ticket-new-modal h2{margin-bottom:4px}
+.ticket-new-modal p{font-size:12px;color:#9692ab;margin-bottom:16px}
+.ticket-new-modal .acc-form{display:grid;gap:12px;margin-bottom:16px}
+.ticket-new-modal .avatar-modal-actions{margin-top:0}
+.ticket-new-modal .avatar-modal-actions .button{margin-left:0}
+@media(max-width:860px){.ticket-layout{grid-template-columns:1fr}.ticket-sidebar{max-height:none}.ticket-chat{min-height:420px}}
+.ticket-new-modal textarea{width:100%;min-height:110px;resize:vertical;line-height:1.7}
+.ticket-new-modal .field input,.ticket-new-modal .field select,.ticket-new-modal .field textarea{border:1px solid #e8e6f2;background:#fcfcff;border-radius:9px;padding:10px 11px;outline:0;font:11.5px 'Noto Sans Thai';color:#565274;width:100%}
+.ticket-new-modal .field input:focus,.ticket-new-modal .field select:focus,.ticket-new-modal .field textarea:focus{border-color:#a99ce8;box-shadow:0 0 0 3px #eeebfb}
+.ticket-new-modal .field label{display:block;color:#88859f;font-size:10px;margin:0 0 6px}
+
+/* ---------- Ticket เป็นช่อง (card) ---------- */
+.ticket-item{position:relative;display:flex;gap:0;align-items:stretch;overflow:hidden;padding:0}
+.ticket-item-bar{width:4px;flex:0 0 4px;background:#d8d4ea;transition:background .15s}
+.ticket-item--open .ticket-item-bar{background:#4fbf94}
+.ticket-item--answered .ticket-item-bar{background:#e0a94a}
+.ticket-item--closed .ticket-item-bar{background:#d8d4ea}
+.ticket-item-body{flex:1;min-width:0;padding:12px 13px}
+.ticket-item-title{align-items:flex-start;gap:8px}
+.ticket-item-title b{white-space:normal;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ticket-status-pill{flex:0 0 auto;font-size:9px;border-radius:20px;padding:3px 8px;font-weight:600}
+.ticket-status-pill.open{background:#e7f8f2;color:#3f9d83}
+.ticket-status-pill.answered{background:#fff5df;color:#b3821f}
+.ticket-status-pill.closed{background:#f1f0f6;color:#9a96ae}
+.ticket-item-meta{align-items:center;gap:8px;margin-top:7px}
+.ticket-item-cat{font-size:9px;background:#f5f3fc;color:#7b74a8;border-radius:20px;padding:3px 8px}
+.ticket-item-meta small{color:#aaa7bb;font-size:9px}
+.ticket-item-count{font-size:9px;background:#f0edff;color:#7768c5;border-radius:20px;padding:3px 8px;font-weight:600}
+.ticket-item-preview{margin:7px 0 0;font-size:10px;color:#9a96b1;line-height:1.65;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ticket-item.active{border-color:var(--purple);background:#f5f2ff}
+.ticket-item.active .ticket-item-bar{background:var(--purple)}
+/* ให้เนื้อหาในช่องว่างอยู่กลางจอ */
+.ticket-chat-empty{justify-content:center}
+.ticket-side-foot{margin-top:auto}

@@ -9,7 +9,7 @@ import re
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from .auth import database_error, require_database, require_user
 from .avatars import avatar_urls

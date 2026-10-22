@@ -1,7 +1,6 @@
-"""API จัดการบัญชีผู้ใช้: โปรไฟล์ รูป คณะที่สนใจ การแจ้งเตือน ติดต่อทีมงาน และลิงก์เชิญ.
+"""โมดูลนี้เป็นโค้ดเก่า — ระบบจัดการบัญชีจริงอยู่ใน app/main.py แล้ว
 
-ทุก endpoint ที่แก้ข้อมูลต้องแนบ Authorization: Bearer <Supabase access token>
-และ backend จะตรวจ token กับ Supabase ทุกครั้ง ผู้ใช้จึงแก้ได้เฉพาะข้อมูลของตัวเอง
+เหลือไว้เฉพาะเพื่อไม่ให้ import ของไฟล์เก่าพัง ไม่มี router ที่ถูก register แล้ว
 """
 from __future__ import annotations
 
@@ -18,7 +17,17 @@ from .account_data import (
     CONTACT_CATEGORIES, FACULTY_CATALOG, GRADE_LEVELS, MAX_FACULTIES,
     NOTIFICATION_KEYS, NOTIFICATION_TOPICS, PROVINCES,
 )
-from .schemas import AvatarUpdate, ContactCreate, FacultiesUpdate, InviteRedeem, NotificationsUpdate, ProfileUpdate
+from .schemas import AccountUpdate as ProfileUpdate
+from .schemas import InviteRedeem
+
+# schema ที่ถูกลบไปแล้ว (ระบบใหม่ใช้ AccountUpdate แทน) — ทำ placeholder ไว้ให้ import ไม่พัง
+class _RemovedSchema:
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+class AvatarUpdate(_RemovedSchema): ...
+class ContactCreate(_RemovedSchema): ...
+class FacultiesUpdate(_RemovedSchema): ...
+class NotificationsUpdate(_RemovedSchema): ...
 
 INVITE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # ตัดตัวที่สับสน (0/O, 1/I/L)
 INVITE_CODE_LENGTH = 8

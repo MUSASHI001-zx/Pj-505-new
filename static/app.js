@@ -25,7 +25,6 @@ window.addEventListener('DOMContentLoaded', () => {
   $('#google-login-page')?.addEventListener('click', startGoogleLogin);
   $$('.bookmark').forEach((button) => button.addEventListener('click', () => { button.textContent = button.textContent.trim() === '♡' ? '♥' : '♡'; button.classList.toggle('saved'); }));
   $$('.choice-grid button').forEach((button) => button.addEventListener('click', () => { $$('.choice-grid button').forEach((item) => item.classList.remove('selected')); button.classList.add('selected'); button.style.background = '#f1efff'; button.style.borderColor = '#9383de'; }));
-  $('#follow-news')?.addEventListener('click', (event) => { event.currentTarget.textContent = '✓ กำลังติดตามข่าว'; event.currentTarget.classList.add('primary'); });
   $('#news-more')?.addEventListener('click', () => {
     newsState.limit += NEWS_PAGE_SIZE;
     loadNews();
@@ -940,6 +939,7 @@ async function accessToken() {
   }
   return currentSession?.access_token || null;
 }
+
 
 // เรียก API ที่ต้องล็อกอิน: แนบ Bearer token และโยน Error พร้อมข้อความภาษาไทยจาก backend
 async function authFetch(path, options = {}) {

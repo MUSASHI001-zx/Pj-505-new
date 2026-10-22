@@ -9,7 +9,6 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
-from .auth import database_error, require_database
 
 # ตาราง -> migration ที่ต้องรันเพื่อให้ได้
 # (ไม่มี tcas_news แล้ว — ข่าวดึงสดจาก myTCAS ผ่าน app/tcas_news.py ไม่ต้องใช้ตาราง)
@@ -28,9 +27,6 @@ REQUIRED_TABLES: dict[str, str] = {
     "faculties": "009_tcas_ingest.sql",
     "admissions": "008_admin.sql",
     "admin_audit_log": "008_admin.sql",
-    "notebooks": "012_tutor_notebooks.sql",
-    "notebook_sources": "012_tutor_notebooks.sql",
-    "tutor_messages": "012_tutor_notebooks.sql",
 }
 
 # คอลัมน์ที่ต้องมีในตาราง users เพื่อให้ระบบหลังบ้านทำงานได้
