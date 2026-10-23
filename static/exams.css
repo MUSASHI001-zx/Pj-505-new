@@ -1,0 +1,28 @@
+/* หน้า /exams — คลังข้อสอบ */
+.exm-app{display:flex;flex-direction:column;gap:16px}
+.exm-toolbar{display:flex;flex-direction:column;gap:12px;padding:16px 18px}
+.exm-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.exm-tabs button{font:600 12px 'Noto Sans Thai',sans-serif;border:1px solid #e6e3f7;background:#fff;color:#7a7798;border-radius:20px;padding:8px 16px;cursor:pointer;transition:.15s}
+.exm-tabs button:hover{border-color:#b3a8ec}
+.exm-tabs button.active{background:#7166d0;border-color:#7166d0;color:#fff}
+.exm-search{display:flex;align-items:center;gap:10px;border:1px solid #e6e5f2;background:#fcfcff;border-radius:14px;padding:8px 14px;color:#aaa8bf}
+.exm-search:focus-within{border-color:#9383de;box-shadow:0 0 0 3px #ece8ff}
+.exm-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:12px 'Noto Sans Thai',sans-serif;color:var(--ink)}
+.exm-chips{display:flex;flex-wrap:wrap;gap:8px}
+.exm-chip{font:500 11px 'Noto Sans Thai',sans-serif;border:1px solid #e8e6f2;background:#fcfcff;color:#8987a7;border-radius:18px;padding:5px 13px;cursor:pointer}
+.exm-chip.active{background:#f1efff;border-color:#9383de;color:#6254bd;font-weight:600}
+.exm-list{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.exm-card{display:flex;flex-direction:column;gap:8px;background:#fff;border:1px solid #eeeefa;border-radius:16px;padding:18px 16px;box-shadow:var(--shadow)}
+.exm-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.exm-badge{background:#eeeafd;color:#6254bd;font-size:10px;font-weight:700;border-radius:12px;padding:3px 10px}
+.exm-year{font-size:10px;color:#a5a2b8}
+.exm-card h3{margin:2px 0 0;font-size:14px;line-height:1.5;color:var(--ink)}
+.exm-meta{margin:0;font-size:11px;color:var(--muted)}
+.exm-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:auto;padding-top:8px}
+.exm-dl{text-decoration:none;font-size:12px;padding:9px 16px}
+.exm-src{font-size:11px;color:#6254bd}
+.exm-list .acc-empty{grid-column:1/-1}
+.exm-credit{font-size:10.5px;line-height:1.7;color:#a5a2b8;margin:4px 0}
+.exm-credit a{color:#6254bd}
+@media(max-width:1100px){.exm-list{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.exm-list{grid-template-columns:1fr}.exm-tabs button{flex:1 1 auto}}

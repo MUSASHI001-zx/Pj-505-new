@@ -23,8 +23,7 @@ window.addEventListener('DOMContentLoaded', () => {
   modal?.addEventListener('click', (event) => { if (event.target === modal) modal.classList.remove('open'); });
   $('#google-login')?.addEventListener('click', startGoogleLogin);
   $('#google-login-page')?.addEventListener('click', startGoogleLogin);
-  $$('.bookmark').forEach((button) => button.addEventListener('click', () => { button.textContent = button.textContent.trim() === '♡' ? '♥' : '♡'; button.classList.toggle('saved'); }));
-  $$('.choice-grid button').forEach((button) => button.addEventListener('click', () => { $$('.choice-grid button').forEach((item) => item.classList.remove('selected')); button.classList.add('selected'); button.style.background = '#f1efff'; button.style.borderColor = '#9383de'; }));
+  $$('.bookmark').forEach((button) => button.addEventListener('click', () => toggleFollow(button)));
   $('#news-more')?.addEventListener('click', () => {
     newsState.limit += NEWS_PAGE_SIZE;
     loadNews();
@@ -36,6 +35,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initQuotaSearch();
   initScholarshipSearch();
   initMetrics();
+  initNotifications();
   restoreSupabaseSession();
 });
 
@@ -111,6 +111,7 @@ async function restoreSupabaseSession() {
     applyUserIdentity(data.session.user);
     await syncUserToBackend(data.session);
     await loadMyAccount();
+    initNotifications();
     adminHeartbeat();  // บอกระบบว่าแอดมินออนไลน์ (ถ้าเป็นแอดมิน)
     const inviteMessage = await redeemPendingInvite();
     if (inviteMessage) {
@@ -300,11 +301,49 @@ function imageNode(imageUrl, alt, fallbackUrl) {
   return img;
 }
 
-function bookmarkButton() {
+function makeFollowButton(type, id, title, url) {
+  const button = el('button', 'bookmark follow-item-button', '♡');
+  button.type = 'button';
+  button.title = 'ติดตามรายการนี้เพื่อรับการแจ้งเตือน';
+  button.dataset.followType = type;
+  button.dataset.followId = String(id || '').slice(0, 200);
+  button.dataset.followTitle = String(title || 'รายการที่ติดตาม');
+  button.dataset.followUrl = url || '/';
+  button.addEventListener('click', (event) => { event.stopPropagation(); toggleFollow(button); });
+  return button;
+}
+
+function bookmarkButton(item = {}) {
   const button = el('button', 'bookmark', '♡');
   button.type = 'button';
-  button.addEventListener('click', () => { button.textContent = button.textContent.trim() === '♡' ? '♥' : '♡'; button.classList.toggle('saved'); });
+  button.title = 'ติดตามข่าวนี้เพื่อรับการแจ้งเตือน';
+  button.dataset.followType = 'news';
+  button.dataset.followId = String(item.id || item.source_url || item.url || item.title || '').slice(0, 200);
+  button.dataset.followTitle = item.title || 'ข่าว TCAS';
+  button.dataset.followUrl = safeUrl(item.source_url || item.url) || '/news';
+  button.addEventListener('click', () => toggleFollow(button));
   return button;
+}
+
+async function toggleFollow(button) {
+  if (!currentSession) { $('#login-modal')?.classList.add('open'); toast('เข้าสู่ระบบก่อนเพื่อติดตามและรับการแจ้งเตือน'); return; }
+  const type = button.dataset.followType;
+  const id = button.dataset.followId;
+  if (!type || !id) { toast('รายการนี้ยังไม่มีรหัสสำหรับติดตาม'); return; }
+  button.disabled = true;
+  try {
+    if (button.classList.contains('saved')) {
+      await authFetch(`/api/notifications/follows/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      button.classList.remove('saved'); button.textContent = '♡';
+    } else {
+      await authFetch('/api/notifications/follows', { method: 'POST', body: JSON.stringify({
+        entity_type: type, entity_id: id, title: button.dataset.followTitle || 'รายการที่ติดตาม', url: button.dataset.followUrl || '/'
+      }) });
+      button.classList.add('saved'); button.textContent = '♥';
+      toast('ติดตามแล้ว เมื่อมีอัปเดตใหม่จะแจ้งเตือนให้คุณ');
+    }
+  } catch (error) { toast(error.message || 'บันทึกรายการติดตามไม่สำเร็จ'); }
+  finally { button.disabled = false; }
 }
 
 function newsPdf(item) {
@@ -338,7 +377,7 @@ function buildNewsCard(item, index) {
   else { cover.append(el('span', '', 'TCAS'), el('div', 'cover-orbit', '✦')); }
   const body = el('div', 'news-card-body');
   const meta = el('div', 'card-meta');
-  meta.append(el('span', `tag-pill ${tone}`, item.source_label || 'TCAS'), bookmarkButton());
+  meta.append(el('span', `tag-pill ${tone}`, item.source_label || 'TCAS'), bookmarkButton(item));
   const footer = el('div', 'card-footer');
   footer.append(el('small', '', newsDate(item)));
   const actions = el('span');
@@ -408,14 +447,37 @@ async function loadNews() {
   }
 }
 
-// ---------- ค้นหากลาง (มหาวิทยาลัย + คณะ + รอบรับสมัคร + ข่าว) ----------
+// ---------- ค้นหากลาง (ทั้งเว็บ: หน้า/เมนู, มหาวิทยาลัย, คณะ, รอบรับสมัคร, ข่าว, ทุน, ข้อสอบ, ชุมชน, อาชีพ, FAQ, โซเชียล) ----------
 const SEARCH_GROUP_LABELS = {
+  pages: 'หน้า / เมนู',
   institutions: 'มหาวิทยาลัย / สถาบัน',
   faculties: 'คณะ / หลักสูตร',
   admissions: 'รอบรับสมัคร',
   news: 'ข่าวประกาศ',
+  scholarships: 'ทุนการศึกษา',
+  exams: 'คลังข้อสอบ',
+  community: 'กระทู้ชุมชน',
+  careers: 'อาชีพ (ค้นหาตัวตน)',
+  faq: 'คำถามที่พบบ่อย',
+  social: 'ช่องทางโซเชียล',
 };
-const SEARCH_GROUP_ICONS = { institutions: '⌘', faculties: '▤', admissions: '◈', news: '☷' };
+const SEARCH_GROUP_ICONS = {
+  pages: '➜', institutions: '⌘', faculties: '▤', admissions: '◈', news: '☷', scholarships: '◈',
+  exams: '▦', community: '☷', careers: '♧', faq: 'ⓘ', social: '✦',
+};
+const SEARCH_SUGGESTIONS = ['โควตา', 'ทุน', 'A-Level', 'TGAT', 'วิศวกรรมศาสตร์', 'แพทย์', 'รอบ 1', 'Instagram'];
+
+function highlightInto(node, text, query) {
+  const source = String(text || '');
+  const tokens = query.split(/\s+/).filter(Boolean).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (!tokens.length) { node.textContent = source; return node; }
+  const pattern = new RegExp(`(${tokens.join('|')})`, 'gi');
+  source.split(pattern).forEach((part, index) => {
+    if (index % 2 === 1) node.append(el('mark', 'gs-hit', part));
+    else if (part) node.append(document.createTextNode(part));
+  });
+  return node;
+}
 
 function initGlobalSearch() {
   const input = $('#global-search');
@@ -423,23 +485,54 @@ function initGlobalSearch() {
   if (!input || !box) return;
   let timer = null;
   let lastQuery = '';
+  let seq = 0;
 
-  const close = () => { box.hidden = true; box.replaceChildren(); };
+  const close = () => { box.hidden = true; box.replaceChildren(); lastQuery = ''; };
+  const rows = () => [...box.querySelectorAll('.gs-item')];
+  const setActive = (index) => {
+    const list = rows();
+    if (!list.length) return;
+    const next = (index + list.length) % list.length;
+    list.forEach((row, i) => row.classList.toggle('is-active', i === next));
+    list[next].scrollIntoView({ block: 'nearest' });
+  };
+  const currentIndex = () => rows().findIndex((row) => row.classList.contains('is-active'));
+
+  const go = (target) => {
+    close();
+    input.value = '';
+    if (/^https?:/i.test(target)) window.open(target, '_blank', 'noopener');
+    else window.location.href = target;
+  };
+
+  const showSuggestions = () => {
+    const wrap = el('div', 'gs-suggest');
+    wrap.append(el('div', 'gs-group-title', '✦ ลองค้นหา'));
+    const chips = el('div', 'gs-chips');
+    SEARCH_SUGGESTIONS.forEach((word) => {
+      const chip = el('button', 'gs-chip', word);
+      chip.type = 'button';
+      chip.addEventListener('click', () => { input.value = word; input.focus(); run(); });
+      chips.append(chip);
+    });
+    wrap.append(chips, el('p', 'gs-hint', 'ค้นได้ทั้งหน้าเมนู มหาวิทยาลัย คณะ ทุน ข่าว ข้อสอบ กระทู้ อาชีพ และคำถามที่พบบ่อย'));
+    box.replaceChildren(wrap);
+    box.hidden = false;
+  };
 
   const render = (data) => {
     const groups = (data && data.groups) || {};
-    const keys = Object.keys(groups);
+    const query = (data && data.query) || '';
+    const keys = Object.keys(groups).filter((key) => (groups[key] || []).length);
     if (!keys.length) {
-      box.replaceChildren(el('p', 'gs-empty', `ไม่พบข้อมูลที่ตรงกับ "${(data && data.query) || ''}"`));
+      box.replaceChildren(el('p', 'gs-empty', `ไม่พบข้อมูลที่ตรงกับ "${query}" — ลองใช้คำสั้น ๆ หรือคำที่ใกล้เคียง`));
       box.hidden = false;
       return;
     }
     const nodes = [];
     keys.forEach((key) => {
-      const items = groups[key] || [];
-      if (!items.length) return;
       nodes.push(el('div', 'gs-group-title', `${SEARCH_GROUP_ICONS[key] || '•'} ${SEARCH_GROUP_LABELS[key] || key}`));
-      items.forEach((item) => {
+      (groups[key] || []).forEach((item) => {
         const row = el('button', 'gs-item');
         row.type = 'button';
         if (item.logo_url) {
@@ -453,51 +546,61 @@ function initGlobalSearch() {
           row.append(el('span', 'gs-dot'));
         }
         const copy = el('div', 'gs-copy');
-        copy.append(el('b', '', item.name || '—'));
+        copy.append(highlightInto(el('b'), item.name || '—', query));
         const sub = [item.institution, item.program, item.summary].filter(Boolean).join(' · ');
         if (sub) copy.append(el('small', '', sub));
         row.append(copy);
-        row.addEventListener('click', () => {
-          const target = item.url || '/';
-          close();
-          input.value = '';
-          if (/^https?:/i.test(target)) window.open(target, '_blank', 'noopener');
-          else window.location.href = target;
-        });
+        row.addEventListener('mouseenter', () => setActive(rows().indexOf(row)));
+        row.addEventListener('click', () => go(item.url || '/'));
         nodes.push(row);
       });
     });
     box.replaceChildren(...nodes);
     box.hidden = false;
+    setActive(0);
   };
 
-  const run = async () => {
+  async function run() {
     const query = input.value.trim();
-    if (query.length < 2) { close(); return; }
+    if (query.length < 2) { query ? close() : showSuggestions(); return; }
     if (query === lastQuery && !box.hidden) return;
     lastQuery = query;
+    const mine = ++seq;
+    if (box.hidden || !box.querySelector('.gs-item')) {
+      box.replaceChildren(el('p', 'gs-empty', 'กำลังค้นหา…'));
+      box.hidden = false;
+    }
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=5`);
       const data = await response.json();
-      render(data);
+      if (mine === seq) render(data);
     } catch {
+      if (mine !== seq) return;
       box.replaceChildren(el('p', 'gs-empty', 'ค้นหาไม่สำเร็จ — ลองใหม่อีกครั้ง'));
       box.hidden = false;
     }
-  };
+  }
 
   input.addEventListener('input', () => {
     window.clearTimeout(timer);
-    timer = window.setTimeout(run, 260);
+    timer = window.setTimeout(run, 220);
   });
-  input.addEventListener('focus', () => { if (input.value.trim().length >= 2) run(); });
+  input.addEventListener('focus', () => run());
   input.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') { close(); input.blur(); }
-    // Enter: เปิดผลลัพธ์แรกที่เจอ
+    if (event.key === 'Escape') { close(); input.blur(); return; }
+    if (event.key === 'ArrowDown') { event.preventDefault(); setActive(currentIndex() + 1); return; }
+    if (event.key === 'ArrowUp') { event.preventDefault(); setActive(currentIndex() - 1); return; }
     if (event.key === 'Enter') {
-      const first = box.querySelector('.gs-item');
-      if (first) { event.preventDefault(); first.click(); }
+      const active = rows()[Math.max(0, currentIndex())];
+      if (active) { event.preventDefault(); active.click(); }
     }
+  });
+  // ทางลัด: กด "/" เพื่อโฟกัสช่องค้นหาจากที่ไหนก็ได้
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') || document.activeElement?.isContentEditable) return;
+    event.preventDefault();
+    input.focus();
   });
   document.addEventListener('click', (event) => {
     if (!event.target.closest('.search-wrap')) close();
@@ -526,7 +629,9 @@ function buildInstituteCard(item, index) {
   const meta = (item.city || '').trim();
   if (meta) text.append(el('p', '', meta));
   if (item.name_en) text.append(el('small', 'inst-name-en', item.name_en));
-  card.append(logo, text, el('button', 'round-arrow', '→'));
+  const follow = makeFollowButton('institution', item.tc_uid || item.id || item.name, item.name, '/institutes');
+  follow.addEventListener('click', (event) => event.stopPropagation());
+  card.append(logo, text, follow, el('button', 'round-arrow', '→'));
   // คลิกแล้วไปดูรายละเอียดที่ myTCAS (แหล่งอ้างอิงต้นทาง)
   if (item.website_url) {
     card.classList.add('has-link');
@@ -571,6 +676,8 @@ function initInstituteSearch() {
   const search = $('#inst-search');
   if (!search) return;
   let timer = null;
+  const preset = new URLSearchParams(window.location.search).get('q');
+  if (preset) { search.value = preset.slice(0, 80); instState.query = search.value.trim(); }
   search.addEventListener('input', (event) => {
     window.clearTimeout(timer);
     const value = event.target.value.trim();
@@ -690,6 +797,8 @@ function buildQuotaRow(item) {
     link.rel = 'noopener noreferrer';
     row.append(link);
   }
+  const followId = item.id || item.source_url || [item.institution, item.faculty, item.program, item.round].filter(Boolean).join(':');
+  row.append(makeFollowButton('admission', followId, `${item.institution || 'รอบรับสมัคร'} ${item.faculty || ''} ${item.round || ''}`.trim(), item.source_url || '/quota'));
   row.append(el('span', 'row-arrow', '→'));
   return row;
 }
@@ -764,6 +873,9 @@ function initQuotaSearch() {
     quotaState.limit += QUOTA_PAGE_SIZE;
     loadQuota();
   });
+  // รองรับลิงก์จากหน้า Identity Discovery: /quota?faculty=วิศวกรรมศาสตร์
+  const presetFaculty = new URLSearchParams(window.location.search).get('faculty');
+  if (presetFaculty && $('#quota-faculty')) $('#quota-faculty').value = presetFaculty.slice(0, 80);
   // โหลดข้อมูลครั้งแรกตอนเปิดหน้า
   run();
 }
@@ -794,6 +906,7 @@ function buildScholarCard(item) {
   const body = el('div', 'scholar-body');
   const meta = el('div', 'scholar-meta');
   meta.append(el('span', `scholar-source ${item.source}`, item.source_label));
+  meta.append(makeFollowButton('scholarship', item.id || item.url, item.title, url || '/scholarships'));
   (item.levels || []).forEach((level) => meta.append(el('span', 'scholar-level', level)));
   body.append(meta);
   body.append(titleLink('h3', item, url));
@@ -1153,3 +1266,150 @@ window.addEventListener('DOMContentLoaded', () => {
   window.setTimeout(adminHeartbeat, 1500);
   window.setInterval(adminHeartbeat, 60000);
 });
+
+
+// ---------- Notification center + Web Push ----------
+let notificationRefreshTimer = null;
+let notificationBusy = false;
+
+function initNotifications() {
+  const button = $('#notification-btn');
+  const panel = $('#notification-panel');
+  if (!button || !panel) return;
+  if (button.dataset.ready !== '1') {
+  button.dataset.ready = '1';
+  button.addEventListener('click', async () => {
+    // เปิดแผงแจ้งเตือนได้เสมอ แม้ยังไม่ได้เข้าสู่ระบบ
+    panel.hidden = !panel.hidden;
+    button.setAttribute('aria-expanded', String(!panel.hidden));
+    if (!panel.hidden) {
+      if (!currentSession) {
+        const list = $('#notification-list');
+        if (list) {
+          const message = document.createElement('p');
+          message.className = 'notification-empty';
+          message.textContent = 'เข้าสู่ระบบเพื่อดูการแจ้งเตือนและรายการที่ติดตาม';
+          list.replaceChildren(message);
+        }
+      } else {
+        await refreshNotifications();
+      }
+    }
+  });
+  $('#notification-read-all')?.addEventListener('click', async () => {
+    try {
+      await authFetch('/api/notifications/read-all', { method: 'POST', body: '{}' });
+      await refreshNotifications();
+    } catch (e) { toast(e.message || 'อัปเดตสถานะไม่สำเร็จ'); }
+  });
+  $('#enable-push')?.addEventListener('click', enableWebPush);
+  document.addEventListener('click', (event) => {
+    if (!panel.hidden && !panel.contains(event.target) && !button.contains(event.target)) {
+      panel.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !panel.hidden) {
+      panel.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+      button.focus();
+    }
+  });
+  }
+  refreshNotifications();
+  if (notificationRefreshTimer) clearInterval(notificationRefreshTimer);
+  notificationRefreshTimer = setInterval(() => {
+    if (currentSession && !document.hidden) refreshNotifications();
+  }, 30000);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('Service worker registration failed', e));
+}
+
+async function refreshNotifications() {
+  if (notificationBusy || !currentSession) return;
+  notificationBusy = true;
+  try {
+    const follows = await authFetch('/api/notifications/follows');
+    const followed = new Set((follows.items || []).map((item) => `${item.entity_type}:${item.entity_id}`));
+    $$('[data-follow-type]').forEach((button) => {
+      const saved = followed.has(`${button.dataset.followType}:${button.dataset.followId}`);
+      button.classList.toggle('saved', saved); button.textContent = saved ? '♥' : '♡';
+    });
+    const data = await authFetch('/api/notifications?limit=50');
+    const badge = $('#notification-count');
+    if (badge) {
+      badge.textContent = String(data.unread_count || 0);
+      badge.hidden = !(data.unread_count > 0);
+    }
+    const list = $('#notification-list');
+    if (!list) return;
+    const items = data.items || [];
+    if (!items.length) {
+      list.innerHTML = '<p class="notification-empty">ยังไม่มีการแจ้งเตือนใหม่</p>';
+      return;
+    }
+    list.replaceChildren(...items.map((item) => {
+      const row = document.createElement('article');
+      row.className = `notification-item${item.read_at ? '' : ' unread'}`;
+      const link = document.createElement('a');
+      link.href = safeInternalUrl(item.url || '/');
+      const title = document.createElement('b'); title.textContent = item.title || 'มีอัปเดตใหม่';
+      const body = document.createElement('span'); body.textContent = item.body || '';
+      const time = document.createElement('small');
+      const date = item.created_at ? new Date(item.created_at) : null;
+      time.textContent = date && !Number.isNaN(date.getTime()) ? date.toLocaleString('th-TH') : '';
+      link.append(title, body, time); row.append(link);
+      if (!item.read_at) {
+        const read = document.createElement('button');
+        read.type = 'button'; read.className = 'notification-mark-read'; read.textContent = 'อ่านแล้ว';
+        read.addEventListener('click', async (event) => {
+          event.preventDefault();
+          try { await authFetch(`/api/notifications/${encodeURIComponent(item.id)}/read`, { method: 'PATCH', body: '{}' }); await refreshNotifications(); }
+          catch (e) { toast(e.message || 'บันทึกไม่สำเร็จ'); }
+        });
+        row.append(read);
+      }
+      return row;
+    }));
+  } catch (error) {
+    const list = $('#notification-list');
+    if (list) { const message = document.createElement('p'); message.className = 'notification-empty'; message.textContent = error.message || 'โหลดการแจ้งเตือนไม่สำเร็จ'; list.replaceChildren(message); }
+  } finally { notificationBusy = false; }
+}
+
+function safeInternalUrl(value) {
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : '/';
+  } catch { return '/'; }
+}
+
+function urlBase64ToUint8Array(value) {
+  const padding = '='.repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+}
+
+async function enableWebPush() {
+  const status = $('#push-status');
+  const button = $('#enable-push');
+  try {
+    if (!currentSession) throw new Error('กรุณาเข้าสู่ระบบก่อน');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('เบราว์เซอร์นี้ไม่รองรับ Push Notification');
+    const configResponse = await fetch('/api/config');
+    const config = await configResponse.json();
+    if (!config.vapid_public_key) throw new Error('ผู้ดูแลยังไม่ได้ตั้งค่า VAPID key สำหรับ Push Notification');
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') throw new Error('คุณยังไม่ได้อนุญาตการแจ้งเตือน');
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(config.vapid_public_key)
+    });
+    await authFetch('/api/notifications/push-subscription', { method: 'POST', body: JSON.stringify(subscription.toJSON()) });
+    if (status) status.textContent = 'เปิดรับการแจ้งเตือนบนอุปกรณ์แล้ว';
+    if (button) button.textContent = 'เปิดใช้งานแล้ว';
+  } catch (error) {
+    if (status) status.textContent = error.message || 'เปิด Push Notification ไม่สำเร็จ';
+  }
+}

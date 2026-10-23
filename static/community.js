@@ -1046,10 +1046,13 @@
       $('#admin-ticket-image-btn')?.addEventListener('click', () => $('#admin-ticket-image')?.click());
       $('#admin-ticket-image-clear')?.addEventListener('click', clearAdminTicketImage);
       let searchTimer = null;
+      const presetQ = new URLSearchParams(window.location.search).get('q');
+      if (presetQ) { state.query = presetQ.trim().slice(0, 80); const sb = $('#thread-search'); if (sb) sb.value = state.query; }
       $('#thread-search')?.addEventListener('input', (event) => {
         window.clearTimeout(searchTimer);
         searchTimer = window.setTimeout(() => { state.query = event.target.value.trim(); loadPosts(); }, 300);
       });
+      { const wanted = (window.location.hash || '').slice(1); if (['advisor', 'ticket'].includes(wanted) && $(`[data-community-tab="${wanted}"]`)) showTab(wanted); }
       loadTags();
       checkSetup().then((ready) => { if (ready) loadPosts(); });
     }
