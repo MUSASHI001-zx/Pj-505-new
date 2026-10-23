@@ -559,9 +559,10 @@ def build_router(repo: Any) -> APIRouter:
         if not rows:
             raise HTTPException(status_code=404, detail="ไม่พบ Ticket นี้")
         name = _clean((user.get("user_metadata") or {}).get("full_name")) or "แอดมิน"
+        image_url = _clean(payload.get("image_url"))
         saved = await repo.insert_returning("ticket_messages", {
             "ticket_id": ticket_id, "sender_type": "admin", "sender_id": user["id"],
-            "sender_name": name, "body": body,
+            "sender_name": name, "body": body, "image_url": image_url or None,
         })
         if saved is None:
             raise database_error(repo, "ส่งข้อความไม่สำเร็จ")

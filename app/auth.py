@@ -134,4 +134,5 @@ MIGRATION_HINTS = {
     "admin_presence": "007_community.sql",
     "admissions": "008_admin.sql",
     "admin_audit_log": "008_admin.sql",
+    "identity_simulation_results": "016_identity_simulation.sql",
 }

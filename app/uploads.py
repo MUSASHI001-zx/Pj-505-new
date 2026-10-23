@@ -77,3 +77,45 @@ async def remove_image(repo: Any, image_url: str) -> None:
         return
     path = image_url.split(marker, 1)[1].split("?", 1)[0]
     await repo.storage_delete(BUCKET, path)
+
+
+# =============================================================================
+# Ticket images — ใช้ bucket ticket-uploads แยกจากกระทู้ชุมชน
+# =============================================================================
+TICKET_BUCKET = "ticket-uploads"
+
+
+def ticket_public_url(repo: Any, path: str) -> str:
+    return f"{repo.url}/storage/v1/object/public/{TICKET_BUCKET}/{path}"
+
+
+async def upload_ticket_image(repo: Any, data: bytes, open_id: str) -> str:
+    """อัปโหลดรูปสำหรับ Ticket — คืน URL สาธารณะ"""
+    if not data:
+        raise HTTPException(status_code=400, detail="ไม่พบไฟล์รูป")
+    if len(data) > MAX_BYTES:
+        raise HTTPException(status_code=400, detail="รูปใหญ่เกิน 5 MB")
+
+    mime = sniff_image_type(data)
+    if mime is None:
+        raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์รูป (JPG, PNG, WEBP, GIF)")
+
+    if not await repo.storage_bucket_exists(TICKET_BUCKET):
+        raise HTTPException(
+            status_code=503,
+            detail="ยังไม่ได้สร้างช่องเก็บรูป — รัน supabase/migrations/015_ticket_images.sql ก่อน",
+        )
+
+    path = f"tickets/{open_id[:8]}-{secrets.token_hex(8)}.{EXTENSIONS.get(mime, 'jpg')}"
+    if not await repo.storage_upload(TICKET_BUCKET, path, data, mime):
+        raise HTTPException(status_code=503, detail="อัปโหลดรูปไม่สำเร็จ — ลองใหม่อีกครั้ง")
+    return ticket_public_url(repo, path)
+
+
+async def remove_ticket_image(repo: Any, image_url: str) -> None:
+    """ลบรูปที่อัปโหลดไว้ — ล้มเหลวก็ไม่ทำให้อะไรพัง"""
+    marker = f"/object/public/{TICKET_BUCKET}/"
+    if marker not in image_url:
+        return
+    path = image_url.split(marker, 1)[1].split("?", 1)[0]
+    await repo.storage_delete(TICKET_BUCKET, path)
