@@ -27,6 +27,7 @@ REQUIRED_TABLES: dict[str, str] = {
     "faculties": "009_tcas_ingest.sql",
     "admissions": "008_admin.sql",
     "admin_audit_log": "008_admin.sql",
+    "identity_simulation_results": "016_identity_simulation.sql",
 }
 
 # คอลัมน์ที่ต้องมีในตาราง users เพื่อให้ระบบหลังบ้านทำงานได้

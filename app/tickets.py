@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from .auth import database_error, is_admin, require_database, require_user
 from .ticket_cleanup import build_helpers as build_ticket_helpers
+from .uploads import upload_ticket_image
 
 NO_ADMIN_REPLY = "ยังไม่มีแอดมินอยู่ในขณะนี้"
 ADMIN_OFFLINE_REPLY = "ขณะนี้แอดมินออฟไลน์อยู่ ข้อความของคุณถูกบันทึกไว้แล้ว และจะได้รับการตอบกลับโดยเร็วที่สุด"
@@ -68,7 +69,7 @@ def build_router(repo: Any) -> APIRouter:
 
     async def serialize_ticket(row: dict[str, Any], open_id: str) -> dict[str, Any]:
         messages = await repo.select("ticket_messages", {
-            "select": "id,sender_type,sender_name,body,created_at",
+            "select": "id,sender_type,sender_name,body,image_url,created_at",
             "ticket_id": f"eq.{row['id']}", "order": "created_at", "limit": "500",
         })
         preview = ""
@@ -81,6 +82,7 @@ def build_router(repo: Any) -> APIRouter:
             "subject": row.get("subject"),
             "category": row.get("category"),
             "status": row.get("status"),
+            "image_url": row.get("image_url"),
             "created_at": row.get("created_at"),
             "updated_at": row.get("updated_at"),
             "message_count": len(messages or []),
@@ -104,6 +106,18 @@ def build_router(repo: Any) -> APIRouter:
         name = _clean((user.get("user_metadata") or {}).get("full_name")) or "แอดมิน"
         await touch_presence(user["id"], name)
         return {"ok": True, "admin_online": True}
+
+    @router.post("/upload", status_code=201)
+    async def upload_ticket_image_endpoint(request: Request) -> dict[str, Any]:
+        """อัปโหลดรูปสำหรับ Ticket — รับ multipart/form-data"""
+        user = await current_user(request)
+        form = await request.form()
+        file = form.get("file")
+        if not file:
+            raise HTTPException(status_code=400, detail="ไม่พบไฟล์รูป")
+        data = await file.read()
+        url = await upload_ticket_image(repo, data, user["id"])
+        return {"url": url}
 
     # ---------- ผู้ใช้ ----------
     @router.get("")
@@ -132,10 +146,10 @@ def build_router(repo: Any) -> APIRouter:
         if row.get("open_id") != user["id"] and not admin:
             raise HTTPException(status_code=403, detail="ดู Ticket ของคนอื่นไม่ได้")
         messages = await repo.select("ticket_messages", {
-            "select": "id,sender_type,sender_name,body,created_at",
+            "select": "id,sender_type,sender_name,body,image_url,created_at",
             "ticket_id": f"eq.{ticket_id}", "order": "created_at", "limit": "500",
         })
-        return {"ticket": {k: row.get(k) for k in ("id", "subject", "category", "status", "created_at", "updated_at")},
+        return {"ticket": {k: row.get(k) for k in ("id", "subject", "category", "status", "image_url", "created_at", "updated_at")},
                 "messages": messages or [],
                 "admin_online": bool(await online_admin())}
 
@@ -156,14 +170,18 @@ def build_router(repo: Any) -> APIRouter:
         if len(body) > MAX_MESSAGE:
             raise HTTPException(status_code=400, detail=f"ข้อความยาวเกิน {MAX_MESSAGE} ตัวอักษร")
 
+        image_url = _clean(payload.get("image_url"))
+
         saved = await repo.insert_returning("tickets", {
             "open_id": user["id"], "subject": subject, "category": category, "status": "open",
+            "image_url": image_url or None,
         })
         if saved is None:
             raise database_error(repo, "สร้าง Ticket ไม่สำเร็จ")
         await repo.insert("ticket_messages", {
             "ticket_id": saved["id"], "sender_type": "user", "sender_id": user["id"],
-            "sender_name": _clean((user.get("user_metadata") or {}).get("full_name")) or "ผู้ใช้", "body": body,
+            "sender_name": _clean((user.get("user_metadata") or {}).get("full_name")) or "ผู้ใช้",
+            "body": body, "image_url": image_url or None,
         })
         admin = await online_admin()
         if not admin:
@@ -171,7 +189,7 @@ def build_router(repo: Any) -> APIRouter:
                 "ticket_id": saved["id"], "sender_type": "system", "sender_id": None,
                 "sender_name": "ระบบ", "body": NO_ADMIN_REPLY,
             })
-        return {"ok": True, "ticket": {k: saved.get(k) for k in ("id", "subject", "category", "status", "created_at", "updated_at")},
+        return {"ok": True, "ticket": {k: saved.get(k) for k in ("id", "subject", "category", "status", "image_url", "created_at", "updated_at")},
                 "admin_online": bool(admin)}
 
     @router.post("/{ticket_id}/messages", status_code=201)
@@ -182,6 +200,8 @@ def build_router(repo: Any) -> APIRouter:
             raise HTTPException(status_code=400, detail="กรุณาพิมพ์ข้อความ")
         if len(body) > MAX_MESSAGE:
             raise HTTPException(status_code=400, detail=f"ข้อความยาวเกิน {MAX_MESSAGE} ตัวอักษร")
+
+        image_url = _clean(payload.get("image_url"))
         rows = await repo.select("tickets", {"select": "*", "id": f"eq.{ticket_id}", "limit": "1"})
         if not rows:
             raise HTTPException(status_code=404, detail="ไม่พบ Ticket นี้")
@@ -196,6 +216,7 @@ def build_router(repo: Any) -> APIRouter:
         await repo.insert("ticket_messages", {
             "ticket_id": ticket_id, "sender_type": "admin" if admin else "user",
             "sender_id": user["id"], "sender_name": sender_name, "body": body,
+            "image_url": image_url or None,
         })
         await repo.update("tickets", {"id": f"eq.{ticket_id}"}, {"updated_at": _now().isoformat()})
 

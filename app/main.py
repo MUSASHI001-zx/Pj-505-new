@@ -5,6 +5,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
 import httpx
@@ -36,6 +37,11 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 from .admin import build_router as build_admin_router  # noqa: E402
 from .ai_chat import build_router as build_ai_chat_router  # noqa: E402
 from .community import build_router as build_community_router  # noqa: E402
+from .exams import build_router as build_exams_router  # noqa: E402
+from . import site_index  # noqa: E402
+from .faq_data import FAQ_CATEGORIES, FAQ_ITEMS  # noqa: E402
+from .identity import build_router as build_identity_router  # noqa: E402
+from .notifications import build_router as build_notifications_router  # noqa: E402
 from .scholarships import build_router as build_scholarships_router  # noqa: E402
 from .tickets import build_router as build_tickets_router  # noqa: E402
 from .tcas_ingest import build_router as build_tcas_ingest_router  # noqa: E402
@@ -55,6 +61,9 @@ app.include_router(build_tcas_sync_router(repo))
 app.include_router(build_tcas_live_router(repo))
 app.include_router(build_tcas_news_router(repo))
 app.include_router(build_ai_chat_router(repo))
+app.include_router(build_identity_router(repo))
+app.include_router(build_notifications_router(repo))
+app.include_router(build_exams_router(repo))
 
 PAGE_META = {
     "login": ("เข้าสู่ระบบ", "เริ่มต้นใช้งาน TCAS Buddy"),
@@ -64,8 +73,10 @@ PAGE_META = {
     "quota": ("ค้นหาโควตา / TCAS", "ค้นหารอบรับสมัครและเกณฑ์ที่เหมาะกับเธอ"),
     "scholarships": ("ค้นหาทุน", "ค้นหาทุนการศึกษาจากกสศ. และ Scholarship.in.th ในที่เดียว"),
     "identity": ("ค้นหาตัวตนของคุณ", "ลองตอบคำถาม แล้วค่อย ๆ รู้จักตัวเองมากขึ้น"),
+    "exams": ("คลังข้อสอบ", "รวมข้อสอบพร้อมเฉลยและตัวอย่างข้อสอบจาก myTCAS ให้ดาวน์โหลด"),
     "community": ("ช่วยเหลือ & สร้างโพล", "คุย ขอความเห็น และรับคำปรึกษาเมื่อไหร่ก็ได้"),
     "faq": ("คู่มือใช้งาน & คำถามที่พบบ่อย", "เริ่มต้นใช้งาน TCAS Buddy ได้ง่าย ๆ"),
+    "additional": ("ข้อมูลเพิ่มเติม", "ช่องทางติดตาม TCAS Buddy บนโซเชียลมีเดีย"),
     "account": ("จัดการบัญชี", "โปรไฟล์ ข้อมูลส่วนตัว การแจ้งเตือน และลิงก์คำเชิญ"),
     "admin": ("ศูนย์จัดการแอดมิน", "ดูภาพรวมและจัดการข้อมูลของระบบ"),
 }
@@ -91,12 +102,7 @@ SAMPLE_ADMISSIONS = [
     {"name": "มหาวิทยาลัยธรรมศาสตร์", "faculty": "วารสารศาสตร์", "round": "รอบ 3 Admission", "criteria": "ดูรายละเอียดใน myTCAS", "status": "ตรวจสอบ"},
 ]
 
-FAQS = [
-    ("เริ่มใช้งาน TCAS Buddy อย่างไร?", "เริ่มจากเข้าสู่ระบบด้วย Google เลือกบทบาท และเลือกสิ่งที่อยากให้เราช่วยดูแล จากนั้นใช้เมนูด้านซ้ายเพื่อไปยังแต่ละฟีเจอร์"),
-    ("ข้อมูลโควตาอ้างอิงจากที่ใด?", "ระบบจะแสดงแหล่งอ้างอิงและลิงก์ไปยัง myTCAS หรือประกาศทางการของมหาวิทยาลัยเสมอ โปรดตรวจสอบประกาศล่าสุดก่อนสมัครจริง"),
-    ("กระดิ่งติดตามข่าวทำงานอย่างไร?", "กดติดตามบนหมวดข่าวที่สนใจ ระบบจะเตรียมแจ้งเตือนในบัญชีของคุณเมื่อมีข่าวใหม่ในหมวดนั้น"),
-    ("AI ที่ปรึกษาในหน้าชุมชนใช้ทำอะไรได้บ้าง?", "ถามเรื่องเกณฑ์รับ โควตา ทุนการศึกษา หรือการเตรียมตัว TCAS ได้ โดย AI จะไปค้นข้อมูลจริงจาก myTCAS กสศ. และเด็กดีมาตอบ ไม่ตอบจากความจำล้วน ๆ"),
-]
+FAQS = [(item["question"], item["answer"]) for item in FAQ_ITEMS]  # ใช้กับช่องค้นหากลาง
 
 
 def context_for(page: str, request: Request) -> dict[str, Any]:
@@ -110,6 +116,8 @@ def context_for(page: str, request: Request) -> dict[str, Any]:
         "institutes": SAMPLE_INSTITUTES,
         "admissions": SAMPLE_ADMISSIONS,
         "faqs": FAQS,
+        "faq_categories": FAQ_CATEGORIES,
+        "faq_total": len(FAQ_ITEMS),
         "supabase_ready": repo.configured,
         "supabase_url": repo.url,
         "request": request,
@@ -127,6 +135,15 @@ async def route_manifest() -> FileResponse:
     return FileResponse(BASE_DIR / "public" / "manus-routes.json", media_type="application/json")
 
 
+@app.get("/sw.js")
+async def service_worker() -> FileResponse:
+    return FileResponse(
+        BASE_DIR / "static" / "sw.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+    )
+
+
 @app.get("/api/config", response_class=JSONResponse)
 async def public_config() -> dict[str, Any]:
     return {
@@ -134,6 +151,7 @@ async def public_config() -> dict[str, Any]:
         "supabase_anon_key": repo.anon_key,
         "configured": repo.auth_configured,
         "database_configured": repo.configured,
+        "vapid_public_key": os.getenv("VAPID_PUBLIC_KEY", ""),
     }
 
 
@@ -302,9 +320,10 @@ async def institutes(q: str = "", limit: int = 100) -> dict[str, Any]:
 
 @app.get("/api/search", response_class=JSONResponse)
 async def global_search(q: str = "", limit: int = 6) -> dict[str, Any]:
-    """ค้นหากลาง — ค้นทั้งมหาวิทยาลัย คณะ/หลักสูตร รอบรับสมัคร และข่าว
+    """ค้นหากลาง — ค้นได้ทั้งเว็บ: หน้า/เมนู มหาวิทยาลัย คณะ/หลักสูตร รอบรับสมัคร ข่าว ทุน
+    ข้อสอบ กระทู้ชุมชน อาชีพ (ค้นหาตัวตน) FAQ และช่องทางโซเชียล
 
-    คืน {query, groups: {institutions, faculties, admissions, news}, total}
+    คืน {query, groups: {pages, institutions, faculties, ...}, total}
     หน้าเว็บเอาไปแสดงเป็นลิสต์ผลลัพธ์แยกตามหมวด
     """
     needle = q.strip()
@@ -317,6 +336,7 @@ async def global_search(q: str = "", limit: int = 6) -> dict[str, Any]:
     faculties: list[dict[str, Any]] = []
     admissions: list[dict[str, Any]] = []
     news_items: list[dict[str, Any]] = []
+    scholarship_items: list[dict[str, Any]] = []
 
     # --- มหาวิทยาลัย/สถาบัน (ข้อมูลสดจาก myTCAS) ---
     try:
@@ -330,7 +350,7 @@ async def global_search(q: str = "", limit: int = 6) -> dict[str, Any]:
                     "name_en": item.get("name_en"),
                     "logo_url": item.get("logoUrl"),
                     "kind": item.get("kind"),
-                    "url": "/institutes",
+                    "url": f"/institutes?q={quote(str(item.get('name') or ''))}",
                 })
             if len(institutions) >= take:
                 break
@@ -405,7 +425,83 @@ async def global_search(q: str = "", limit: int = 6) -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         news_items = []
 
+    # --- ทุนการศึกษา (ดึงสดจาก กสศ. + Scholarship.in.th) ---
+    try:
+        from .scholarships import load_items as load_scholarships
+        items, _ = await load_scholarships()
+        for item in items:
+            haystack = f"{item.get('title') or ''} {item.get('summary') or ''} {item.get('sponsor') or ''} {' '.join(item.get('tags') or [])} {' '.join(item.get('levels') or [])}".lower()
+            if needle.lower() in haystack:
+                scholarship_items.append({
+                    "id": item.get("id"),
+                    "name": item.get("title"),
+                    "summary": item.get("summary"),
+                    "image_url": item.get("image_url"),
+                    "source": item.get("source_label"),
+                    "deadline": item.get("deadline"),
+                    "url": item.get("url") or "/scholarships",
+                })
+            if len(scholarship_items) >= take:
+                break
+    except Exception:  # noqa: BLE001
+        scholarship_items = []
+
+    # คณะ/รอบรับสมัคร -> พาไปหน้าโควตาพร้อมกรองด้วยชื่อคณะ
+    for entry in faculties + admissions:
+        if entry.get("url") == "/quota" and entry.get("name"):
+            label = str(entry["name"]).split(" — ")[0]
+            entry["url"] = f"/quota?faculty={quote(label)}"
+
+    # --- หน้า/เมนู, FAQ, อาชีพ, โซเชียล (ดัชนีคงที่ ค้นได้ทันที) ---
+    pages = site_index.search_pages(needle, take)
+    socials = site_index.search_socials(needle, take)
+    faq_items = site_index.search_faqs(needle, FAQ_ITEMS, take)
+    try:
+        from .identity_data import CAREERS
+        career_items = site_index.search_careers(needle, CAREERS, take)
+    except Exception:  # noqa: BLE001
+        career_items = []
+
+    # --- คลังข้อสอบ (ดึงจาก myTCAS / รายการสำรอง) ---
+    exam_items: list[dict[str, Any]] = []
+    try:
+        from .exams import load_catalog
+        from .exam_catalog import search_items as search_exam_items
+        catalog, _live = await load_catalog()
+        for item in search_exam_items(catalog, needle)[:take]:
+            exam_items.append({
+                "id": item.get("id"),
+                "name": item.get("title"),
+                "summary": " · ".join(x for x in (item.get("level"), item.get("year")) if x) or None,
+                "url": f"/exams?q={quote(str(item.get('subject') or item.get('title') or ''))}",
+            })
+    except Exception:  # noqa: BLE001
+        exam_items = []
+
+    # --- กระทู้ชุมชน ---
+    community_items: list[dict[str, Any]] = []
+    if repo.configured and safe:
+        try:
+            rows = await repo.select("community_posts", {
+                "select": "id,title,body",
+                "or": f"(title.ilike.*{safe}*,body.ilike.*{safe}*)",
+                "order": "id.desc",
+                "limit": str(take),
+            })
+            for row in rows or []:
+                body = str(row.get("body") or "")
+                community_items.append({
+                    "id": row.get("id"),
+                    "name": row.get("title"),
+                    "summary": body[:100] + ("…" if len(body) > 100 else ""),
+                    "url": f"/community?q={quote(needle)}",
+                })
+        except Exception:  # noqa: BLE001
+            community_items = []
+
     groups: dict[str, list[dict[str, Any]]] = {}
+    if pages:
+        groups["pages"] = pages
     if institutions:
         groups["institutions"] = institutions
     if faculties:
@@ -414,6 +510,18 @@ async def global_search(q: str = "", limit: int = 6) -> dict[str, Any]:
         groups["admissions"] = admissions
     if news_items:
         groups["news"] = news_items
+    if scholarship_items:
+        groups["scholarships"] = scholarship_items
+    if exam_items:
+        groups["exams"] = exam_items
+    if community_items:
+        groups["community"] = community_items
+    if career_items:
+        groups["careers"] = career_items
+    if faq_items:
+        groups["faq"] = faq_items
+    if socials:
+        groups["social"] = socials
 
     return {
         "query": needle,

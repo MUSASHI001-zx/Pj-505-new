@@ -32,7 +32,7 @@
     <main class="main-content">
       <header class="topbar">
         <button class="mobile-menu icon-button" id="mobile-menu" aria-label="เปิดเมนู">☰</button>
-        <div class="search-wrap"><div class="search-box"><span>⌕</span><input id="global-search" type="search" autocomplete="off" placeholder="ค้นหา" /></div><div class="search-results" id="global-search-results" hidden></div></div>
+        <div class="search-wrap"><div class="search-box"><span>⌕</span><input id="global-search" type="search" autocomplete="off" placeholder="ค้นหาทุกอย่างในเว็บ เช่น โควตา, ทุน, A-Level, แพทย์…" aria-label="ค้นหาทั้งเว็บ" /></div><div class="search-results" id="global-search-results" hidden></div></div>
         <div class="top-actions"><button class="icon-button notification-button" id="notification-btn" aria-label="การแจ้งเตือน" aria-expanded="false">♧<em id="notification-count" hidden>0</em></button><section class="notification-panel" id="notification-panel" hidden aria-label="รายการแจ้งเตือน"><div class="notification-panel-head"><b>การแจ้งเตือน</b><button id="notification-read-all" type="button">อ่านทั้งหมด</button></div><div id="notification-list"><p class="notification-empty">เข้าสู่ระบบเพื่อดูการแจ้งเตือน</p></div><div class="notification-panel-foot"><button id="enable-push" type="button">เปิดแจ้งเตือนบนอุปกรณ์</button><span id="push-status" role="status"></span></div></section><button class="user-chip" id="login-btn"><span class="avatar small" id="header-avatar"></span><span class="user-chip-copy"><b id="header-name"></b><small id="header-email">บัญชีของฉัน</small></span><span>⌄</span></button><div class="account-menu" id="account-menu" hidden><div class="account-menu-head"><span class="avatar" id="menu-avatar"></span><div><b id="menu-name"></b><small id="menu-email">ยังไม่ได้เข้าสู่ระบบ</small></div></div><div class="account-menu-section"><span>บทบาทของฉัน</span><div class="role-switcher"><button data-account-role="student">นักเรียน</button><button data-account-role="parents">ผู้ปกครอง</button><button data-account-role="teacher">คุณครู</button></div></div><button class="account-action" id="account-profile">จัดการบัญชี</button><button class="account-action danger" id="logout-btn">ออกจากระบบ</button></div></div>
       </header>
       <section class="page-body">
@@ -220,7 +220,33 @@
             </div>
           </div>
 {% elif page == 'faq' %}
-          <div class="page-intro"><div><span class="eyebrow">เริ่มต้นได้ในไม่กี่นาที</span><h1>คู่มือใช้งาน & FAQ</h1><p>คำตอบสั้น ๆ สำหรับการใช้งาน TCAS Buddy</p></div><div class="help-bubble">ยังไม่เจอคำตอบ? <b>คุยกับทีมช่วยเหลือ →</b></div></div><div class="faq-layout"><div class="faq-nav"><button class="active">เริ่มต้นใช้งาน</button><button>บัญชีและบทบาท</button><button>ข่าวและการแจ้งเตือน</button><button>AI ที่ปรึกษา</button><button id="supabase">การตั้งค่าระบบ</button></div><div class="faq-list">{% for question, answer in faqs %}<details {% if loop.first %}open{% endif %}><summary>{{ question }}<span>+</span></summary><p>{{ answer }}</p></details>{% endfor %}<details><summary>ถ้าต้องการเชื่อมต่อ Supabase ต้องทำอย่างไร?<span>+</span></summary><p>ตั้งค่า SUPABASE_URL, SUPABASE_ANON_KEY และ SUPABASE_SERVICE_ROLE_KEY ใน environment ของโปรเจ็กต์ จากนั้นเปิด Google provider และเพิ่ม redirect URL ของเว็บ ระบบจะเปลี่ยนจากโหมดตัวอย่างเป็นการอ่าน/บันทึกข้อมูลจริง</p></details></div></div>
+          <div class="page-intro faq-intro"><div><span class="eyebrow">เริ่มต้นได้ในไม่กี่นาที</span><h1>คู่มือใช้งาน & FAQ</h1><p>คำตอบสั้น ๆ สำหรับการใช้งาน TCAS Buddy ค้นหาคำถาม หรือเลือกหมวดที่สนใจได้เลย</p></div><a class="help-bubble" href="/community#ticket">ยังไม่เจอคำตอบ? <b>คุยกับทีมช่วยเหลือ →</b></a></div>
+          <div class="faq-layout" id="faq-root">
+            <aside class="faq-side">
+              <div class="faq-search"><span aria-hidden="true">⌕</span><input id="faq-q" type="search" maxlength="80" autocomplete="off" placeholder="ค้นหาในคู่มือ เช่น โควตา ทุน บัญชี" aria-label="ค้นหาในคู่มือ" /></div>
+              <nav class="faq-nav" aria-label="หมวดคำถาม">
+                <button type="button" class="active" data-faq-cat="all"><span class="faq-nav-ico" aria-hidden="true">✦</span><span class="faq-nav-text">ทั้งหมด</span><em>{{ faq_total }}</em></button>
+                {% for cat in faq_categories %}<button type="button" data-faq-cat="{{ cat.id }}"><span class="faq-nav-ico" aria-hidden="true">{{ cat.icon }}</span><span class="faq-nav-text">{{ cat.label }}</span><em>{{ cat['items'] | length }}</em></button>{% endfor %}
+              </nav>
+            </aside>
+            <div class="faq-main">
+              <div class="faq-toolbar"><span class="faq-count" id="faq-count" aria-live="polite"></span><button type="button" class="faq-toggle" id="faq-toggle">ขยายทั้งหมด</button></div>
+              <div class="faq-list" id="faq-list">
+                {% for cat in faq_categories %}
+                <section class="faq-group" data-faq-group="{{ cat.id }}">
+                  <h2 class="faq-group-title"><span aria-hidden="true">{{ cat.icon }}</span>{{ cat.label }}</h2>
+                  {% for question, answer, link in cat['items'] %}
+                  <details class="faq-item" id="faq-{{ cat.id }}-{{ loop.index }}" data-faq-cat="{{ cat.id }}">
+                    <summary><span class="faq-q">{{ question }}</span><span class="faq-plus" aria-hidden="true"></span></summary>
+                    <div class="faq-a"><p>{{ answer }}</p>{% if link %}<a class="faq-link" href="{{ link[1] }}">{{ link[0] }} <span aria-hidden="true">→</span></a>{% endif %}</div>
+                  </details>
+                  {% endfor %}
+                </section>
+                {% endfor %}
+                <p class="faq-empty" id="faq-empty" hidden>ไม่พบคำถามที่ตรงกับคำค้น — ลองใช้คำสั้น ๆ หรือ <a href="/community#ticket">ถามทีมช่วยเหลือ</a></p>
+              </div>
+            </div>
+          </div>
         {% elif page == 'additional' %}
           <div class="page-intro"><div><span class="eyebrow">ติดตามเราได้ทุกช่องทาง</span><h1>ข้อมูลเพิ่มเติม</h1><p>ติดตามข่าวสาร อัปเดตข้อมูล และช่องทางของ TCAS Buddy ได้ที่นี่</p></div></div>
           <section class="acc-social-section" aria-label="ช่องทางออนไลน์ของ TCAS Buddy">
@@ -515,6 +541,7 @@
   {% if page == 'account' %}<script src="/static/account.js?v=account-1"></script>{% endif %}
   {% if page == 'identity' %}<script src="/static/identity.js?v=identity-2"></script>{% endif %}
   {% if page == 'exams' %}<script src="/static/exams.js?v=exams-1"></script>{% endif %}
+  {% if page == 'faq' %}<script src="/static/faq.js?v=faq-1"></script>{% endif %}
   {% if page in ['community', 'admin'] %}<script src="/static/community.js?v=community-2"></script>{% endif %}
   {% if page == 'community' %}<script src="/static/advisor.js?v=advisor-1"></script>{% endif %}
   {% if page == 'admin' %}<script src="/static/admin.js?v=admin-2"></script>{% endif %}
